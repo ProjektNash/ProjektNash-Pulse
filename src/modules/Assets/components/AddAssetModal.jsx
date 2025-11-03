@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
-export default function AddAssetModal({ show, onClose, onSave, existingAsset }) {
+export default function AddAssetModal({ show, onClose, onSave, existingAsset, areaId }) {
+
   const blankState = {
     assetCode: "",
     name: "",
@@ -57,7 +58,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
 
     setSaving(true);
     try {
-      const payload = { ...form, assetCode: autoCode };
+      const payload = { ...form, assetCode: autoCode, areaId };
 
       const res = await fetch(
         existingAsset
