@@ -107,11 +107,12 @@ export default function AreaAssets({ area, goBack }) {
 
       {/* Add/Edit Asset Modal */}
       <AddAssetModal
-        show={showModal}
-        onClose={() => setShowModal(false)}
-        onSave={editingAsset ? handleEditAsset : handleAddAsset}
-        existingAsset={editingAsset}
-      />
+  show={showModal}
+  onClose={() => setShowModal(false)}
+  onSave={(asset) => handleAddAsset({ ...asset, areaId: area._id })} // ✅ attaches areaId
+  existingAsset={editingAsset}
+/>
+
     </div>
   );
 }
