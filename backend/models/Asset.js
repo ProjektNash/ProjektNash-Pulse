@@ -18,9 +18,24 @@ const assetSchema = new mongoose.Schema({
   disposalDate: String,
   disposalValue: Number,
   disposalReason: String,
-  // 🔹 Link each asset to an area
-  areaId: { type: mongoose.Schema.Types.ObjectId, ref: "Area" },
-  createdAt: { type: Date, default: Date.now }
+
+  areaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Area",
+    required: true,
+  },
+
+  createdAt: { type: Date, default: Date.now },
+});
+
+// ✅ Auto-generate next sequential asset code
+assetSchema.pre("save", async function (next) {
+  if (this.isNew && !this.assetCode) {
+    const count = await mongoose.model("Asset").countDocuments();
+    const nextNumber = count + 1;
+    this.assetCode = `AST-${nextNumber.toString().padStart(4, "0")}`;
+  }
+  next();
 });
 
 export default mongoose.model("Asset", assetSchema);
