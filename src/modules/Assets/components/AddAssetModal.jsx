@@ -34,11 +34,11 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
         setForm(existingAsset);
         setAutoCode(existingAsset.assetCode || "");
       } else {
-        const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
-        const newCode = `AST-${randomSuffix}`;
-        setAutoCode(newCode);
-        setForm(blankState);
-      }
+  // ✅ Let backend handle sequential AST-0001, AST-0002, etc.
+  setAutoCode("");
+  setForm(blankState);
+}
+
     }
   }, [show, existingAsset]);
 
