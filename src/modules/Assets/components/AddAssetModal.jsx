@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 
 export default function AddAssetModal({ show, onClose, onSave, existingAsset, areaId }) {
-
   const blankState = {
     assetCode: "",
     name: "",
@@ -25,30 +24,36 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   const [form, setForm] = useState(blankState);
   const [autoCode, setAutoCode] = useState("");
   const [saving, setSaving] = useState(false);
-
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // 🔹 When modal opens — if editing, load existing; if new, generate code
+  /* ==========================================================
+     🔹 When modal opens — load existing or reset new
+  =========================================================== */
   useEffect(() => {
     if (show) {
       if (existingAsset) {
+        // --- Editing existing asset
         setForm(existingAsset);
         setAutoCode(existingAsset.assetCode || "");
       } else {
-  // ✅ Let backend handle sequential AST-0001, AST-0002, etc.
-  setAutoCode("");
-  setForm(blankState);
-}
-
+        // --- Creating new asset → reset form and remove _id
+        setForm({ ...blankState, _id: undefined });
+        setAutoCode("");
+      }
     }
   }, [show, existingAsset]);
 
+  /* ==========================================================
+     🔹 Handle field changes
+  =========================================================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 🔹 Save or update asset in MongoDB
+  /* ==========================================================
+     🔹 Save or update asset
+  =========================================================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
@@ -58,26 +63,25 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
     setSaving(true);
     try {
+      // ⚙️ Always strip _id before sending (prevents duplicates)
       const { _id, ...cleanForm } = form;
       const payload = { ...cleanForm, assetCode: autoCode, areaId };
 
+      const url = existingAsset
+        ? `${API_BASE}/api/assets/${existingAsset._id}`
+        : `${API_BASE}/api/assets`;
 
-      const res = await fetch(
-        existingAsset
-          ? `${API_BASE}/api/assets/${existingAsset._id}`
-          : `${API_BASE}/api/assets`,
-        {
-          method: existingAsset ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(url, {
+        method: existingAsset ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!res.ok) throw new Error("Failed to save asset");
       const data = await res.json();
       console.log("✅ Asset saved:", data);
 
-      if (onSave) onSave(data.asset || data); // trigger parent refresh
+      if (onSave) onSave(data.asset || data);
       onClose();
     } catch (err) {
       console.error("❌ Error saving asset:", err);
@@ -89,6 +93,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
   if (!show) return null;
 
+  /* ==========================================================
+     🔹 Modal UI
+  =========================================================== */
   return (
     <div className="modal d-block bg-dark bg-opacity-50">
       <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -287,7 +294,12 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
             {/* ===== Footer ===== */}
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+                disabled={saving}
+              >
                 Cancel
               </button>
               <button
