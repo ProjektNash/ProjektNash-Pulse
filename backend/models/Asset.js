@@ -18,8 +18,15 @@ const assetSchema = new mongoose.Schema({
   disposalDate: String,
   disposalValue: Number,
   disposalReason: String,
-  area: String,
-  createdAt: { type: Date, default: Date.now }
+
+  // ✅ Updated field: links each asset to its area
+  areaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Area", // matches your Area model name
+    required: true,
+  },
+
+  createdAt: { type: Date, default: Date.now },
 });
 
 export default mongoose.model("Asset", assetSchema);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import AddAreaModal from "../components/AddAreaModal";
 import AreaAssets from "./AreaAssets";
 
@@ -8,31 +8,55 @@ export default function Areas() {
   const [selectedArea, setSelectedArea] = useState(null);
   const [assetCounts, setAssetCounts] = useState({});
 
-  // 🔹 Handle area added
-  const handleAreaAdded = (newArea) => {
-    setAreas((prev) => [...prev, newArea]);
-    setAssetCounts((prev) => ({ ...prev, [newArea.id || newArea._id || Date.now()]: 0 }));
+  const API_BASE = import.meta.env.VITE_API_BASE;
+
+  // 🔹 Load all areas from backend
+  const loadAreas = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/areas`);
+      if (!res.ok) throw new Error("Failed to fetch areas");
+      const data = await res.json();
+      setAreas(data);
+
+      // Optionally reset asset counts (if using later)
+      const newCounts = {};
+      data.forEach((a) => {
+        newCounts[a._id] = assetCounts[a._id] || 0;
+      });
+      setAssetCounts(newCounts);
+    } catch (err) {
+      console.error("❌ Error loading areas:", err);
+    }
   };
 
-  // 🔹 Delete area
-  const handleDelete = (id) => {
+  // 🔹 When component loads
+  useEffect(() => {
+    loadAreas();
+  }, []);
+
+  // 🔹 When new area added, reload list
+  const handleAreaAdded = () => {
+    loadAreas();
+  };
+
+  // 🔹 Delete area (backend + local refresh)
+  const handleDelete = async (id) => {
     if (!window.confirm("Delete this area?")) return;
-    setAreas((prev) => prev.filter((a) => a.id !== id && a._id !== id));
-    setAssetCounts((prev) => {
-      const updated = { ...prev };
-      delete updated[id];
-      return updated;
-    });
+    try {
+      const res = await fetch(`${API_BASE}/api/areas/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete area");
+      await loadAreas();
+    } catch (err) {
+      console.error("❌ Error deleting area:", err);
+      alert("Failed to delete area.");
+    }
   };
 
   // 🔹 Switch to AreaAssets view
   if (selectedArea) {
-    return (
-      <AreaAssets
-        area={selectedArea}
-        goBack={() => setSelectedArea(null)}
-      />
-    );
+    return <AreaAssets area={selectedArea} goBack={() => setSelectedArea(null)} />;
   }
 
   // 🔹 Main table view
@@ -63,7 +87,7 @@ export default function Areas() {
             </thead>
             <tbody>
               {areas.map((area) => (
-                <tr key={area.id || area._id}>
+                <tr key={area._id}>
                   <td
                     style={{ cursor: "pointer" }}
                     onClick={() => setSelectedArea(area)}
@@ -71,12 +95,12 @@ export default function Areas() {
                     {area.name || "Unnamed Area"}
                   </td>
                   <td className="text-center">
-                    {assetCounts[area.id || area._id] ?? "-"}
+                    {assetCounts[area._id] ?? "-"}
                   </td>
                   <td className="text-center">
                     <button
                       className="btn btn-sm btn-danger"
-                      onClick={() => handleDelete(area.id || area._id)}
+                      onClick={() => handleDelete(area._id)}
                     >
                       Delete
                     </button>

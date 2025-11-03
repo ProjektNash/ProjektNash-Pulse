@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
 
 export default function AddAssetModal({ show, onClose, onSave, existingAsset }) {
   const blankState = {
-    id: "",
     assetCode: "",
     name: "",
     category: "",
@@ -25,54 +23,65 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
 
   const [form, setForm] = useState(blankState);
   const [autoCode, setAutoCode] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // ✅ Generate a new unique asset code each time the modal opens (if adding new)
+  const API_BASE = import.meta.env.VITE_API_BASE;
+
+  // 🔹 When modal opens — if editing, load existing; if new, generate code
   useEffect(() => {
-    if (show && !existingAsset) {
-      let nextId = parseInt(localStorage.getItem("pn_nextAssetId") || "1", 10);
-      const newCode = `AST-${nextId.toString().padStart(4, "0")}`;
-      setAutoCode(newCode);
-      setForm(blankState); // reset the form fields when opening new
+    if (show) {
+      if (existingAsset) {
+        setForm(existingAsset);
+        setAutoCode(existingAsset.assetCode || "");
+      } else {
+        const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
+        const newCode = `AST-${randomSuffix}`;
+        setAutoCode(newCode);
+        setForm(blankState);
+      }
     }
   }, [show, existingAsset]);
-
-  // ✅ Populate form when editing an existing asset
-  useEffect(() => {
-    if (existingAsset) {
-      setForm(existingAsset);
-      setAutoCode(existingAsset.assetCode || "");
-    }
-  }, [existingAsset]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  // 🔹 Save or update asset in MongoDB
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!form.name.trim()) {
       alert("Please enter Asset Name.");
       return;
     }
 
-    let nextId = parseInt(localStorage.getItem("pn_nextAssetId") || "1", 10);
-    const assetCode = existingAsset?.assetCode || `AST-${nextId.toString().padStart(4, "0")}`;
+    setSaving(true);
+    try {
+      const payload = { ...form, assetCode: autoCode };
 
-    // 🔹 Prepare asset object
-    const assetToSave = existingAsset
-      ? { ...existingAsset, ...form, assetCode }
-      : { ...form, id: uuidv4(), assetCode };
+      const res = await fetch(
+        existingAsset
+          ? `${API_BASE}/api/assets/${existingAsset._id}`
+          : `${API_BASE}/api/assets`,
+        {
+          method: existingAsset ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
-    // 🔹 Save and increment counter if new asset
-    if (!existingAsset) {
-      nextId++;
-      localStorage.setItem("pn_nextAssetId", nextId);
+      if (!res.ok) throw new Error("Failed to save asset");
+      const data = await res.json();
+      console.log("✅ Asset saved:", data);
+
+      if (onSave) onSave(data.asset || data); // trigger parent refresh
+      onClose();
+    } catch (err) {
+      console.error("❌ Error saving asset:", err);
+      alert("Failed to save asset. Please check your connection.");
+    } finally {
+      setSaving(false);
     }
-
-    onSave(assetToSave);
-    onClose();
   };
 
   if (!show) return null;
@@ -87,15 +96,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
             {/* ===== Core Operations ===== */}
             <h6 className="fw-bold text-primary mt-2 mb-2">Core Operations</h6>
             <div className="row g-2 mb-3">
-              {/* Read-only assigned ID */}
               <div className="col-md-4">
                 <label className="form-label small">Assigned Asset ID</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={autoCode}
-                  readOnly
-                />
+                <input type="text" className="form-control" value={autoCode} readOnly />
               </div>
 
               <div className="col-md-8">
@@ -155,9 +158,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
                 </select>
               </div>
               <div className="col-md-4">
-                <label className="form-label small">
-                  Installation / Commission Date
-                </label>
+                <label className="form-label small">Installation / Commission Date</label>
                 <input
                   type="date"
                   className="form-control"
@@ -203,7 +204,6 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
                 />
               </div>
 
-              {/* Newly added fields */}
               <div className="col-md-4">
                 <label className="form-label small">Replacement Value (£)</label>
                 <input
@@ -250,9 +250,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
                 />
               </div>
               <div className="col-md-4">
-                <label className="form-label small">
-                  Disposal / Write-Off Date
-                </label>
+                <label className="form-label small">Disposal / Write-Off Date</label>
                 <input
                   type="date"
                   className="form-control"
@@ -286,18 +284,15 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset }) 
 
             {/* ===== Footer ===== */}
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-              >
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
                 Cancel
               </button>
               <button
                 type="submit"
                 className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`}
+                disabled={saving}
               >
-                {existingAsset ? "Update Asset" : "Save Asset"}
+                {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
               </button>
             </div>
           </form>

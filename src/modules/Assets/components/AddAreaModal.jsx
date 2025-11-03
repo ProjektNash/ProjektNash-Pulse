@@ -1,28 +1,41 @@
 import React, { useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 
 export default function AddAreaModal({ show, onClose, onSaved }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e) => {
+  // Use your API base from .env
+  const API_BASE = import.meta.env.VITE_API_BASE;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     setSaving(true);
 
-    // Simulate creating a new area locally
-    const newArea = {
-      id: uuidv4(),
-      name: name.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // 🔹 POST new area to backend
+      const res = await fetch(`${API_BASE}/api/areas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
 
-    if (onSaved) onSaved(newArea);
+      if (!res.ok) throw new Error("Failed to save area");
+      const data = await res.json();
 
-    setName("");
-    setSaving(false);
-    onClose();
+      console.log("✅ Area saved to database:", data.area);
+
+      if (onSaved) onSaved(data.area);
+
+      setName("");
+      onClose();
+    } catch (err) {
+      console.error("❌ Error saving area:", err);
+      alert("Error saving area. Please check your connection.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!show) return null;
