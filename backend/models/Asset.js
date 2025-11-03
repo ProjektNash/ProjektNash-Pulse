@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const assetSchema = new mongoose.Schema({
-  assetCode: String,
+  assetCode: { type: String, unique: true, index: true }, // ✅ ensure uniqueness & fast lookups
   name: { type: String, required: true },
   category: String,
   model: String,
@@ -28,14 +28,36 @@ const assetSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// ✅ Auto-generate next sequential asset code
+/* ==========================================================
+   ✅ Pre-save hook: auto-assign next sequential code (safe)
+   ----------------------------------------------------------
+   - Finds the highest existing assetCode (AST-####)
+   - Increments safely for concurrent inserts
+========================================================== */
 assetSchema.pre("save", async function (next) {
-  if (this.isNew && !this.assetCode) {
-    const count = await mongoose.model("Asset").countDocuments();
-    const nextNumber = count + 1;
-    this.assetCode = `AST-${nextNumber.toString().padStart(4, "0")}`;
+  try {
+    // Only generate a code if missing
+    if (this.isNew && !this.assetCode) {
+      const last = await mongoose
+        .model("Asset")
+        .findOne({ assetCode: { $regex: /^AST-\d+$/ } })
+        .sort({ assetCode: -1 })
+        .lean();
+
+      let nextNum = 1;
+      if (last && last.assetCode) {
+        const match = last.assetCode.match(/AST-(\d+)/);
+        if (match) nextNum = parseInt(match[1], 10) + 1;
+      }
+
+      this.assetCode = `AST-${String(nextNum).padStart(4, "0")}`;
+    }
+
+    next();
+  } catch (err) {
+    console.error("❌ Error generating asset code:", err);
+    next(err);
   }
-  next();
 });
 
 export default mongoose.model("Asset", assetSchema);

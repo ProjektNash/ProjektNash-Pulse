@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 
 export default function AddAssetModal({ show, onClose, onSave, existingAsset, areaId }) {
-
   const blankState = {
     assetCode: "",
     name: "",
@@ -25,23 +24,39 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   const [form, setForm] = useState(blankState);
   const [autoCode, setAutoCode] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingCode, setLoadingCode] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // 🔹 When modal opens — if editing, load existing; if new, generate code
+  // 🔹 When modal opens — if editing, load existing; if new, get code from backend
   useEffect(() => {
     if (show) {
       if (existingAsset) {
         setForm(existingAsset);
         setAutoCode(existingAsset.assetCode || "");
       } else {
-  // ✅ Let backend handle sequential AST-0001, AST-0002, etc.
-  setAutoCode("");
-  setForm(blankState);
-}
-
+        setForm(blankState);
+        fetchNextAssetCode();
+      }
     }
   }, [show, existingAsset]);
+
+  // 🔹 Ask backend for next sequential AST code
+  const fetchNextAssetCode = async () => {
+    try {
+      setLoadingCode(true);
+      const res = await fetch(`${API_BASE}/api/assets/next-code`);
+      if (!res.ok) throw new Error("Failed to get next code");
+      const data = await res.json();
+      setAutoCode(data.nextCode);
+      setForm((prev) => ({ ...prev, assetCode: data.nextCode }));
+    } catch (err) {
+      console.error("❌ Error fetching next asset code:", err);
+      setAutoCode("AST-ERROR");
+    } finally {
+      setLoadingCode(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -60,7 +75,6 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
     try {
       const { _id, ...cleanForm } = form;
       const payload = { ...cleanForm, assetCode: autoCode, areaId };
-
 
       const res = await fetch(
         existingAsset
@@ -101,7 +115,12 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
             <div className="row g-2 mb-3">
               <div className="col-md-4">
                 <label className="form-label small">Assigned Asset ID</label>
-                <input type="text" className="form-control" value={autoCode} readOnly />
+                <input
+                  type="text"
+                  className="form-control"
+                  value={loadingCode ? "Loading..." : autoCode}
+                  readOnly
+                />
               </div>
 
               <div className="col-md-8">
@@ -293,7 +312,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
               <button
                 type="submit"
                 className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`}
-                disabled={saving}
+                disabled={saving || loadingCode}
               >
                 {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
               </button>
