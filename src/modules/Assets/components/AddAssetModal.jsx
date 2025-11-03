@@ -30,20 +30,18 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
   // 🔹 When modal opens — if editing, load existing; if new, generate code
   useEffect(() => {
-  if (!show) return;
+    if (show) {
+      if (existingAsset) {
+        setForm(existingAsset);
+        setAutoCode(existingAsset.assetCode || "");
+      } else {
+  // ✅ Let backend handle sequential AST-0001, AST-0002, etc.
+  setAutoCode("");
+  setForm(blankState);
+}
 
-  if (existingAsset) {
-    // ✅ Always refresh form when editing changes
-    setForm({ ...existingAsset });
-    setAutoCode(existingAsset.assetCode || "");
-  } else {
-    const randomSuffix = Math.floor(Math.random() * 9000) + 1000;
-    const newCode = `AST-${randomSuffix}`;
-    setAutoCode(newCode);
-    setForm(blankState);
-  }
-}, [show, existingAsset]);
-
+    }
+  }, [show, existingAsset]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
