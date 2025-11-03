@@ -11,18 +11,23 @@ const router = express.Router();
    - Returns next one as AST-0024
 ========================================================== */
 async function getNextAssetCode() {
-  const lastAsset = await Asset.findOne({ assetCode: { $regex: /^AST-\d+$/ } })
-    .sort({ assetCode: -1 })
-    .lean();
+  try {
+    const lastAsset = await Asset.findOne({ assetCode: { $regex: /^AST-\d+$/ } })
+      .sort({ assetCode: -1 })
+      .lean();
 
-  let nextNum = 1;
+    let nextNum = 1;
 
-  if (lastAsset && lastAsset.assetCode) {
-    const match = lastAsset.assetCode.match(/AST-(\d+)/);
-    if (match) nextNum = parseInt(match[1], 10) + 1;
+    if (lastAsset && lastAsset.assetCode) {
+      const match = lastAsset.assetCode.match(/AST-(\d+)/);
+      if (match) nextNum = parseInt(match[1], 10) + 1;
+    }
+
+    return `AST-${String(nextNum).padStart(4, "0")}`;
+  } catch (err) {
+    console.error("❌ getNextAssetCode() failed:", err.message);
+    throw new Error("Failed to generate next asset code");
   }
-
-  return `AST-${String(nextNum).padStart(4, "0")}`;
 }
 
 /* ==========================================================
@@ -32,11 +37,15 @@ router.get("/", async (req, res) => {
   try {
     const { areaId } = req.query;
     const filter = areaId ? { areaId } : {};
+    console.log("🔍 Fetching assets with filter:", filter);
+
     const assets = await Asset.find(filter);
+    console.log(`✅ Found ${assets.length} assets`);
+
     res.json(assets);
   } catch (err) {
     console.error("❌ Error fetching assets:", err);
-    res.status(500).json({ error: "Failed to load assets" });
+    res.status(500).json({ error: err.message || "Failed to load assets" });
   }
 });
 
@@ -49,7 +58,7 @@ router.get("/next-code", async (req, res) => {
     res.json({ nextCode });
   } catch (err) {
     console.error("❌ Error generating next asset code:", err);
-    res.status(500).json({ error: "Failed to generate next asset code" });
+    res.status(500).json({ error: err.message || "Failed to generate next asset code" });
   }
 });
 
@@ -67,13 +76,16 @@ router.post("/", async (req, res) => {
       req.body.assetCode = assetCode;
     }
 
+    console.log("🆕 Creating new asset:", req.body);
+
     const newAsset = new Asset(req.body);
     await newAsset.save();
 
-    res.json({ message: "Asset created", asset: newAsset });
+    console.log("✅ Asset created:", newAsset.assetCode);
+    res.json({ message: "Asset created successfully", asset: newAsset });
   } catch (err) {
     console.error("❌ Error creating asset:", err);
-    res.status(500).json({ error: "Failed to create asset" });
+    res.status(500).json({ error: err.message || "Failed to create asset" });
   }
 });
 
@@ -82,11 +94,18 @@ router.post("/", async (req, res) => {
 ========================================================== */
 router.put("/:id", async (req, res) => {
   try {
+    console.log("✏️ Updating asset:", req.params.id);
     const updated = await Asset.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json({ message: "Asset updated", asset: updated });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Asset not found" });
+    }
+
+    console.log("✅ Asset updated:", updated.assetCode);
+    res.json({ message: "Asset updated successfully", asset: updated });
   } catch (err) {
     console.error("❌ Error updating asset:", err);
-    res.status(500).json({ error: "Failed to update asset" });
+    res.status(500).json({ error: err.message || "Failed to update asset" });
   }
 });
 
@@ -95,11 +114,18 @@ router.put("/:id", async (req, res) => {
 ========================================================== */
 router.delete("/:id", async (req, res) => {
   try {
-    await Asset.findByIdAndDelete(req.params.id);
-    res.json({ message: "Asset deleted" });
+    console.log("🗑️ Deleting asset:", req.params.id);
+    const deleted = await Asset.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Asset not found" });
+    }
+
+    console.log("✅ Asset deleted:", deleted.assetCode);
+    res.json({ message: "Asset deleted successfully" });
   } catch (err) {
     console.error("❌ Error deleting asset:", err);
-    res.status(500).json({ error: "Failed to delete asset" });
+    res.status(500).json({ error: err.message || "Failed to delete asset" });
   }
 });
 
