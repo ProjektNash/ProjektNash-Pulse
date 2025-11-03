@@ -58,7 +58,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
     setSaving(true);
     try {
-      const payload = { ...form, assetCode: autoCode, areaId };
+      const { _id, ...cleanForm } = form;
+      const payload = { ...cleanForm, assetCode: autoCode, areaId };
+
 
       const res = await fetch(
         existingAsset
