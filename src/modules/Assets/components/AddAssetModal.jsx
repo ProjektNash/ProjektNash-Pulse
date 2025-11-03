@@ -30,16 +30,19 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
   // 🔹 When modal opens — if editing, load existing; if new, get code from backend
   useEffect(() => {
-    if (show) {
-      if (existingAsset) {
-        setForm(existingAsset);
-        setAutoCode(existingAsset.assetCode || "");
-      } else {
-        setForm(blankState);
-        fetchNextAssetCode();
-      }
+  if (show) {
+    if (existingAsset) {
+      // Editing mode
+      setForm(existingAsset);
+      setAutoCode(existingAsset.assetCode || "");
+    } else {
+      // New asset: completely reset form (avoid duplicate _id)
+      setForm({ ...blankState, _id: undefined });
+      fetchNextAssetCode();
     }
-  }, [show, existingAsset]);
+  }
+}, [show, existingAsset]);
+
 
   // 🔹 Ask backend for next sequential AST code
   const fetchNextAssetCode = async () => {
