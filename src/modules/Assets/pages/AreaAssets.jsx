@@ -9,7 +9,9 @@ export default function AreaAssets({ area, goBack }) {
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // 🔹 Load all assets for this area
+  /* ==========================================================
+     🔹 Load all assets for this area
+  =========================================================== */
   const loadAssets = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/assets?areaId=${area._id}`);
@@ -21,29 +23,16 @@ export default function AreaAssets({ area, goBack }) {
     }
   };
 
-  // 🔹 When the page loads or area changes
+  /* ==========================================================
+     🔹 When the page loads or area changes
+  =========================================================== */
   useEffect(() => {
     loadAssets();
   }, [area]);
 
-  // 🔹 Add new asset (POST to backend)
-  const handleAddAsset = async (newAsset) => {
-    try {
-      const assetWithArea = { ...newAsset, areaId: area._id };
-      const res = await fetch(`${API_BASE}/api/assets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(assetWithArea),
-      });
-      if (!res.ok) throw new Error("Failed to save asset");
-      await loadAssets(); // reload list
-    } catch (err) {
-      console.error("❌ Error adding asset:", err);
-      alert("Error saving asset.");
-    }
-  };
-
-  // 🔹 Edit existing asset (PUT)
+  /* ==========================================================
+     🔹 Edit existing asset (PUT)
+  =========================================================== */
   const handleEditAsset = async (updatedAsset) => {
     try {
       const res = await fetch(`${API_BASE}/api/assets/${updatedAsset._id}`, {
@@ -59,7 +48,9 @@ export default function AreaAssets({ area, goBack }) {
     }
   };
 
-  // 🔹 Delete asset (DELETE)
+  /* ==========================================================
+     🔹 Delete asset (DELETE)
+  =========================================================== */
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this asset?")) return;
     try {
@@ -74,6 +65,9 @@ export default function AreaAssets({ area, goBack }) {
     }
   };
 
+  /* ==========================================================
+     🔹 Render
+  =========================================================== */
   return (
     <div className="container py-4">
       {/* Header */}
@@ -107,14 +101,12 @@ export default function AreaAssets({ area, goBack }) {
 
       {/* Add/Edit Asset Modal */}
       <AddAssetModal
-  show={showModal}
-  onClose={() => setShowModal(false)}
-  onSave={editingAsset ? handleEditAsset : handleAddAsset}
-  existingAsset={editingAsset}
-  areaId={area._id}
-/>
-
-
+        show={showModal}
+        onClose={() => setShowModal(false)}
+        onSave={loadAssets} // ✅ only reload list after modal save
+        existingAsset={editingAsset}
+        areaId={area._id}
+      />
     </div>
   );
 }
