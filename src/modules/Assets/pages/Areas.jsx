@@ -7,10 +7,13 @@ export default function Areas() {
   const [showModal, setShowModal] = useState(false);
   const [selectedArea, setSelectedArea] = useState(null);
   const [assetCounts, setAssetCounts] = useState({});
+  const [areaValues, setAreaValues] = useState({});
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // 🔹 Load all areas from backend
+  /* ==========================================================
+     🔹 Load all areas + asset counts + total values
+  =========================================================== */
   const loadAreas = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/areas`);
@@ -18,8 +21,9 @@ export default function Areas() {
       const data = await res.json();
       setAreas(data);
 
-      // 🔹 After loading areas, load asset counts for each
       const counts = {};
+      const values = {};
+
       await Promise.all(
         data.map(async (area) => {
           try {
@@ -27,38 +31,42 @@ export default function Areas() {
             if (assetRes.ok) {
               const assetData = await assetRes.json();
               counts[area._id] = assetData.length;
+
+              const totalValue = assetData.reduce((sum, asset) => {
+                const cost = parseFloat(asset.purchaseCost) || 0;
+                return sum + cost;
+              }, 0);
+              values[area._id] = totalValue;
             } else {
               counts[area._id] = 0;
+              values[area._id] = 0;
             }
           } catch {
             counts[area._id] = 0;
+            values[area._id] = 0;
           }
         })
       );
 
       setAssetCounts(counts);
+      setAreaValues(values);
     } catch (err) {
       console.error("❌ Error loading areas:", err);
     }
   };
 
-  // 🔹 When component loads
   useEffect(() => {
     loadAreas();
   }, []);
 
-  // 🔹 When new area added, reload list
   const handleAreaAdded = () => {
     loadAreas();
   };
 
-  // 🔹 Delete area (backend + local refresh)
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this area?")) return;
     try {
-      const res = await fetch(`${API_BASE}/api/areas/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`${API_BASE}/api/areas/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete area");
       await loadAreas();
     } catch (err) {
@@ -67,21 +75,27 @@ export default function Areas() {
     }
   };
 
-// 🔹 Switch to AreaAssets view
-if (selectedArea) {
+  /* ==========================================================
+     🔹 Conditional Render
+     - If area selected → show its assets
+     - Else → show area list
+  =========================================================== */
+ if (selectedArea) {
   return (
     <AreaAssets
       area={selectedArea}
       goBack={() => {
         setSelectedArea(null);
-        loadAreas(); // ✅ refresh when coming back
+        loadAreas(); // ✅ refresh areas after returning
       }}
     />
   );
 }
 
 
-  // 🔹 Main table view
+  /* ==========================================================
+     🔹 Default: Show Areas Table
+  =========================================================== */
   return (
     <div className="container py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -98,9 +112,12 @@ if (selectedArea) {
           <table className="table table-bordered align-middle shadow-sm">
             <thead className="table-light">
               <tr>
-                <th style={{ width: "50%" }}>Area Name</th>
-                <th style={{ width: "20%" }} className="text-center">
+                <th style={{ width: "40%" }}>Area Name</th>
+                <th style={{ width: "15%" }} className="text-center">
                   Assets
+                </th>
+                <th style={{ width: "15%" }} className="text-center">
+                  Value (£)
                 </th>
                 <th style={{ width: "30%" }} className="text-center">
                   Actions
@@ -116,8 +133,14 @@ if (selectedArea) {
                   >
                     {area.name || "Unnamed Area"}
                   </td>
-                  <td className="text-center">
-                    {assetCounts[area._id] ?? "-"}
+                  <td className="text-center">{assetCounts[area._id] ?? "-"}</td>
+                  <td className="text-center text-success fw-semibold">
+                    £
+                    {areaValues[area._id]
+                      ? areaValues[area._id].toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })
+                      : "0.00"}
                   </td>
                   <td className="text-center">
                     <button
