@@ -5,13 +5,16 @@ import "bootstrap/dist/css/bootstrap.min.css";
 export default function Sidebar() {
   const location = useLocation();
 
+  // ✅ Set which modules are ready to show
+  const showSafety = false;
+  const showMaintenance = false;
+
   const menuItems = [
     { name: "Dashboard", path: "/" },
-    { name: "Safety", path: "/Safety" },
+    showSafety && { name: "Safety", path: "/Safety" },
     { name: "Assets", path: "/Assets" },
-    { name: "Maintenance", path: "/maintenance" },
-    
-  ];
+    showMaintenance && { name: "Maintenance", path: "/maintenance" },
+  ].filter(Boolean); // 🔹 removes false items
 
   return (
     <div
