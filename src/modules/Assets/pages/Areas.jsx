@@ -18,12 +18,25 @@ export default function Areas() {
       const data = await res.json();
       setAreas(data);
 
-      // Optionally reset asset counts (if using later)
-      const newCounts = {};
-      data.forEach((a) => {
-        newCounts[a._id] = assetCounts[a._id] || 0;
-      });
-      setAssetCounts(newCounts);
+      // 🔹 After loading areas, load asset counts for each
+      const counts = {};
+      await Promise.all(
+        data.map(async (area) => {
+          try {
+            const assetRes = await fetch(`${API_BASE}/api/assets?areaId=${area._id}`);
+            if (assetRes.ok) {
+              const assetData = await assetRes.json();
+              counts[area._id] = assetData.length;
+            } else {
+              counts[area._id] = 0;
+            }
+          } catch {
+            counts[area._id] = 0;
+          }
+        })
+      );
+
+      setAssetCounts(counts);
     } catch (err) {
       console.error("❌ Error loading areas:", err);
     }
