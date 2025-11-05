@@ -67,10 +67,19 @@ export default function Areas() {
     }
   };
 
-  // 🔹 Switch to AreaAssets view
-  if (selectedArea) {
-    return <AreaAssets area={selectedArea} goBack={() => setSelectedArea(null)} />;
-  }
+// 🔹 Switch to AreaAssets view
+if (selectedArea) {
+  return (
+    <AreaAssets
+      area={selectedArea}
+      goBack={() => {
+        setSelectedArea(null);
+        loadAreas(); // ✅ refresh when coming back
+      }}
+    />
+  );
+}
+
 
   // 🔹 Main table view
   return (
