@@ -9,6 +9,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
     serial: "",
     status: "Active",
     installDate: "",
+    installationCost: "", // 🆕 Added
     purchaseDate: "",
     supplier: "",
     purchaseCost: "",
@@ -32,11 +33,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   useEffect(() => {
     if (show) {
       if (existingAsset) {
-        // --- Editing existing asset
         setForm(existingAsset);
         setAutoCode(existingAsset.assetCode || "");
       } else {
-        // --- Creating new asset → reset form and remove _id
         setForm({ ...blankState, _id: undefined });
         setAutoCode("");
       }
@@ -63,7 +62,6 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
 
     setSaving(true);
     try {
-      // ⚙️ Always strip _id before sending (prevents duplicates)
       const { _id, ...cleanForm } = form;
       const payload = { ...cleanForm, assetCode: autoCode, areaId };
 
@@ -167,6 +165,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   <option>Scrapped</option>
                 </select>
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Installation / Commission Date</label>
                 <input
@@ -174,6 +173,19 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   className="form-control"
                   name="installDate"
                   value={form.installDate}
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* 🆕 Installation Cost */}
+              <div className="col-md-4">
+                <label className="form-label small">Installation Cost (£)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-control"
+                  name="installationCost"
+                  value={form.installationCost}
                   onChange={handleChange}
                 />
               </div>

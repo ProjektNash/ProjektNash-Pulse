@@ -17,6 +17,7 @@ const assetSchema = new mongoose.Schema(
     serial: String,
     status: { type: String, default: "Active" },
     installDate: String,
+    installationCost: Number,
     purchaseDate: String,
     supplier: String,
     purchaseCost: Number,

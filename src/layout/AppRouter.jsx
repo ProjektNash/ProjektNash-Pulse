@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import Login from "./Login";
 import Assets from "../modules/Assets/Assets";
+import MaintenanceCalendar from "../modules/Maintenance-Calendar/MaintenanceCalendar";
 
 // --- Temporary placeholder pages ---
 function Dashboard() {
@@ -18,8 +19,8 @@ function Dashboard() {
 function Maintenance() {
   return (
     <div className="p-4">
-      <h3 className="mb-3">Maintenance</h3>
-      <p className="text-secondary">Placeholder module page.</p>
+      <h3 className="mb-3">Maintenance Calendar</h3>
+      <MaintenanceCalendar />
     </div>
   );
 }
@@ -72,9 +73,9 @@ export default function AppRouter() {
             <div className="container-fluid mt-3">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/safety" element={<Safety />} /> {/* ✅ Restored */}
+                <Route path="/safety" element={<Safety />} />
                 <Route path="/assets" element={<Assets />} />
-                <Route path="/maintenance" element={<Maintenance />} />
+                <Route path="/maintenance-calendar" element={<Maintenance />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </div>

@@ -11,9 +11,12 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: "Dashboard", path: "/" },
-    showSafety && { name: "Safety", path: "/Safety" },
-    { name: "Assets", path: "/Assets" },
-    showMaintenance && { name: "Maintenance", path: "/maintenance" },
+    showSafety && { name: "Safety", path: "/safety" },
+    { name: "Assets", path: "/assets" },
+    showMaintenance && {
+      name: "Maintenance Calendar",
+      path: "/maintenance-calendar",
+    },
   ].filter(Boolean); // 🔹 removes false items
 
   return (
