@@ -68,7 +68,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
   }, [existingJob]);
 
   /* ============================================================
-     🔹 Asset Filtering
+     🔹 Filtering
   ============================================================ */
   useEffect(() => {
     if (!assetQuery.trim()) return setFilteredAssets([]);
@@ -85,9 +85,6 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
     setFilteredAssets(results);
   }, [assetQuery, assets]);
 
-  /* ============================================================
-     🔹 Engineer Filtering
-  ============================================================ */
   useEffect(() => {
     if (!engineerQuery.trim()) return setFilteredEngineers([]);
     const results = engineers.filter((e) =>
@@ -108,21 +105,21 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
       asset.asset_title ||
       "Unnamed";
 
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       assetCode: asset.assetCode || asset.code || "",
       assetName: name,
-    });
+    }));
     setAssetQuery(name);
     setShowAssetDropdown(false);
   };
 
   const handleEngineerSelect = (eng) => {
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       engineer: eng.partnerName,
       engineerId: eng._id,
-    });
+    }));
     setEngineerQuery(eng.partnerName);
     setShowEngineerDropdown(false);
   };
@@ -133,26 +130,37 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    // ✅ Validate required fields
     if (!form.assetCode || !form.assetName) {
       alert("Please select a valid asset.");
       return;
     }
-
-    const validEngineer = engineers.find(
-      (eng) =>
-        eng.partnerName.toLowerCase() === form.engineer.toLowerCase() &&
-        eng._id === form.engineerId
-    );
-    if (!validEngineer) {
-      alert("Please select an engineer from the list.");
+    if (!form.jobType) {
+      alert("Please select a job type.");
+      return;
+    }
+    if (!form.bookedDate) {
+      alert("Please choose a booked date.");
+      return;
+    }
+    if (!form.engineer) {
+      alert("Please select an engineer.");
       return;
     }
 
-    const newJob = {
-      ...form,
-      _id: existingJob?._id,
+    // ✅ Construct clean payload (only the fields backend expects)
+    const payload = {
+      assetCode: form.assetCode,
+      assetName: form.assetName,
+      jobType: form.jobType,
+      description: form.description || "",
+      engineer: form.engineer,
+      bookedDate: form.bookedDate,
+      status: form.status,
+      _id: existingJob?._id, // only used for PUT
     };
-    onSave(newJob);
+
+    onSave(payload);
   };
 
   /* ============================================================
@@ -192,11 +200,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
             {showAssetDropdown && filteredAssets.length > 0 && (
               <ul
                 className="list-group position-absolute w-100 shadow-sm"
-                style={{
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  zIndex: 9999,
-                }}
+                style={{ maxHeight: "200px", overflowY: "auto", zIndex: 9999 }}
               >
                 {filteredAssets.map((asset) => {
                   const name =
@@ -279,11 +283,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
             {showEngineerDropdown && filteredEngineers.length > 0 && (
               <ul
                 className="list-group position-absolute w-100 shadow-sm"
-                style={{
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  zIndex: 9999,
-                }}
+                style={{ maxHeight: "200px", overflowY: "auto", zIndex: 9999 }}
               >
                 {filteredEngineers.map((eng) => (
                   <li
