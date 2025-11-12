@@ -6,7 +6,8 @@ import cors from "cors";
 // --- Import Routes ---
 import areaRoutes from "./routes/areas.js";
 import assetRoutes from "./routes/assets.js";
-import partnerRoutes from "./routes/partners.js"; // ✅ NEW (Business Partners)
+import partnerRoutes from "./routes/partners.js";     // ✅ Business Partners
+import maintenanceRoutes from "./routes/maintenance.js"; // ✅ Maintenance Jobs
 
 dotenv.config();
 const app = express();
@@ -35,9 +36,10 @@ mongoose
 // ✅ API Routes
 app.use("/api/areas", areaRoutes);
 app.use("/api/assets", assetRoutes);
-app.use("/api/partners", partnerRoutes); // ✅ New Business Partners route
+app.use("/api/partners", partnerRoutes);
+app.use("/api/maintenance", maintenanceRoutes); // ✅ New Maintenance Jobs route
 
-// ✅ Health check route (optional for debugging)
+// ✅ Health check route (for debugging)
 app.get("/", (req, res) => {
   res.send("🚀 ProjektNash-Pulse Backend API is running...");
 });

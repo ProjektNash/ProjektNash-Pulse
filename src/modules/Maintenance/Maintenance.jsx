@@ -5,41 +5,73 @@ export default function Maintenance() {
   const [jobs, setJobs] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
+  const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // Load saved jobs
+  /* ==========================================================
+     🔹 Load all maintenance jobs from backend
+  ========================================================== */
+  const loadJobs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/maintenance`);
+      if (!res.ok) throw new Error("Failed to fetch maintenance jobs");
+      const data = await res.json();
+      setJobs(data);
+    } catch (err) {
+      console.error("❌ Error loading jobs:", err);
+    }
+  };
+
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("pn_maintenanceJobs")) || [];
-    setJobs(saved);
+    loadJobs();
   }, []);
 
-  // Save updated jobs
-  const saveJobs = (newJobs) => {
-    setJobs(newJobs);
-    localStorage.setItem("pn_maintenanceJobs", JSON.stringify(newJobs));
-  };
+  /* ==========================================================
+     🔹 Add or update job
+  ========================================================== */
+  const handleSave = async (job) => {
+    try {
+      const method = job._id ? "PUT" : "POST";
+      const url = job._id
+        ? `${API_BASE}/api/maintenance/${job._id}`
+        : `${API_BASE}/api/maintenance`;
 
-  // Add or update job
-  const handleSave = (job) => {
-    let newJobs;
-    if (editingJob) {
-      newJobs = jobs.map((j) => (j._id === job._id ? job : j));
-    } else {
-      newJobs = [...jobs, job];
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(job),
+      });
+
+      if (!res.ok) throw new Error("Failed to save job");
+
+      await loadJobs(); // reload list
+      setShowModal(false);
+      setEditingJob(null);
+    } catch (err) {
+      console.error("❌ Error saving job:", err);
+      alert("Error saving job — please try again.");
     }
-    saveJobs(newJobs);
-    setShowModal(false);
-    setEditingJob(null);
   };
 
-  // Delete job
-  const handleDelete = (id) => {
-    if (window.confirm("Delete this job?")) {
-      const updated = jobs.filter((j) => j._id !== id);
-      saveJobs(updated);
+  /* ==========================================================
+     🔹 Delete job
+  ========================================================== */
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this job?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/maintenance/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete job");
+      await loadJobs();
+    } catch (err) {
+      console.error("❌ Error deleting job:", err);
+      alert("Error deleting job — please try again.");
     }
   };
 
-  // ✅ Format date as DD/MM/YYYY
+  /* ==========================================================
+     🔹 Format date (DD/MM/YYYY)
+  ========================================================== */
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     const date = new Date(dateStr);
@@ -71,9 +103,9 @@ export default function Maintenance() {
         <table className="table table-striped table-bordered align-middle">
           <thead className="table-light">
             <tr>
-              <th>Asset Code</th>
-              <th>Task</th>
-              <th>Supplier</th>
+              <th>Asset</th>
+              <th>Job Type</th>
+              <th>Engineer</th>
               <th>Booked Date</th>
               <th>Status</th>
               <th style={{ width: "130px" }}>Actions</th>
@@ -82,10 +114,12 @@ export default function Maintenance() {
           <tbody>
             {jobs.map((job) => (
               <tr key={job._id}>
-                <td>{job.assetCode} – {job.assetName}</td>
-                <td>{job.task}</td>
-                <td>{job.supplier}</td>
-                {/* 👇 Format Booked Date */}
+                <td>
+                  {job.assetName}
+                  <div className="small text-muted">{job.assetCode}</div>
+                </td>
+                <td>{job.jobType || job.task}</td>
+                <td>{job.engineer || job.supplier}</td>
                 <td>{formatDate(job.bookedDate)}</td>
                 <td>
                   <span

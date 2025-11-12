@@ -4,10 +4,10 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
   const [form, setForm] = useState({
     assetCode: "",
     assetName: "",
-    task: "",
+    jobType: "",
     description: "",
-    supplier: "",
-    supplierId: "",
+    engineer: "",
+    engineerId: "",
     bookedDate: "",
     status: "Booked",
   });
@@ -32,7 +32,6 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
         const res = await fetch(`${API_BASE}/api/assets`);
         if (!res.ok) throw new Error("Failed to fetch assets");
         const data = await res.json();
-        console.log("✅ Loaded assets:", data.length);
         setAssets(data);
       } catch (err) {
         console.error("❌ Error loading assets:", err);
@@ -64,16 +63,15 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
     if (existingJob) {
       setForm(existingJob);
       setAssetQuery(existingJob.assetName || existingJob.assetCode || "");
-      setEngineerQuery(existingJob.supplier || "");
+      setEngineerQuery(existingJob.engineer || "");
     }
   }, [existingJob]);
 
   /* ============================================================
-     🔹 Asset Filtering (Flexible field matching)
+     🔹 Asset Filtering
   ============================================================ */
   useEffect(() => {
     if (!assetQuery.trim()) return setFilteredAssets([]);
-
     const results = assets.filter((a) => {
       const name =
         a.assetName ||
@@ -84,7 +82,6 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
         "";
       return name.toLowerCase().includes(assetQuery.toLowerCase());
     });
-
     setFilteredAssets(results);
   }, [assetQuery, assets]);
 
@@ -123,8 +120,8 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
   const handleEngineerSelect = (eng) => {
     setForm({
       ...form,
-      supplier: eng.partnerName,
-      supplierId: eng._id,
+      engineer: eng.partnerName,
+      engineerId: eng._id,
     });
     setEngineerQuery(eng.partnerName);
     setShowEngineerDropdown(false);
@@ -143,8 +140,8 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
 
     const validEngineer = engineers.find(
       (eng) =>
-        eng.partnerName.toLowerCase() === form.supplier.toLowerCase() &&
-        eng._id === form.supplierId
+        eng.partnerName.toLowerCase() === form.engineer.toLowerCase() &&
+        eng._id === form.engineerId
     );
     if (!validEngineer) {
       alert("Please select an engineer from the list.");
@@ -153,8 +150,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
 
     const newJob = {
       ...form,
-      _id: existingJob ? existingJob._id : Date.now().toString(),
-      type: "Engineer",
+      _id: existingJob?._id,
     };
     onSave(newJob);
   };
@@ -191,7 +187,6 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
                 setShowAssetDropdown(true);
               }}
               onFocus={() => setShowAssetDropdown(true)}
-              // ⏱ longer delay prevents premature close
               onBlur={() => setTimeout(() => setShowAssetDropdown(false), 200)}
             />
             {showAssetDropdown && filteredAssets.length > 0 && (
@@ -233,12 +228,10 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
           <div className="mb-2">
             <label className="form-label">Job Type</label>
             <select
-              name="task"
+              name="jobType"
               className="form-select"
-              value={form.task}
-              onChange={(e) =>
-                setForm({ ...form, task: e.target.value })
-              }
+              value={form.jobType}
+              onChange={(e) => setForm({ ...form, jobType: e.target.value })}
               required
             >
               <option value="">-- Select Type --</option>
@@ -261,9 +254,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
               rows="3"
               placeholder="e.g. Replaced motor belt, repaired gearbox..."
               value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
 
@@ -336,9 +327,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
               name="status"
               className="form-select"
               value={form.status}
-              onChange={(e) =>
-                setForm({ ...form, status: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
             >
               <option>Booked</option>
               <option>Completed</option>

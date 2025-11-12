@@ -12,7 +12,7 @@ export default function Sidebar() {
   const showBusinessPartners = true; // 👈 New module toggle
 
   const showMaintenance = true; // 👈 External / Engineer jobs
-  const showPreventiveMaintenance = true; // 👈 In-House / Preventive tasks
+  const showPreventiveMaintenance = false; // 👈 In-House / Preventive tasks
   const showMaintenanceCalendar = true; // 👈 Calendar dashboard
 
   const menuItems = [
