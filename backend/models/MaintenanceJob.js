@@ -1,13 +1,13 @@
 import mongoose from "mongoose";
 
 const MaintenanceJobSchema = new mongoose.Schema({
-  assetId: { type: mongoose.Schema.Types.ObjectId, ref: "Asset", required: true },
+  assetId: { type: mongoose.Schema.Types.ObjectId, ref: "Asset" }, // not required
   assetName: { type: String, required: true },
-  jobType: { type: String, required: true },        // e.g. Inspection, Repair, Service
+  jobType: { type: String, required: true },
   description: { type: String },
   engineer: { type: String },
-  bookedDate: { type: Date },
-  status: { type: String, default: "Booked" },      // e.g. Booked, Completed, Cancelled
+  bookedDate: { type: Date, required: true },
+  status: { type: String, default: "Booked" },
 });
 
 export default mongoose.model("MaintenanceJob", MaintenanceJobSchema);
