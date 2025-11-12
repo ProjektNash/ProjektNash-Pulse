@@ -5,37 +5,68 @@ export default function BusinessPartners() {
   const [partners, setPartners] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // ✅ Load from localStorage
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("pn_businessPartners")) || [];
-    setPartners(saved);
-  }, []);
+  const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // ✅ Save to localStorage
-  const savePartners = (newList) => {
-    setPartners(newList);
-    localStorage.setItem("pn_businessPartners", JSON.stringify(newList));
+  // ✅ Load from backend
+  const loadPartners = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/api/partners`);
+      if (!res.ok) throw new Error("Failed to fetch business partners");
+      const data = await res.json();
+      setPartners(data);
+      setError("");
+    } catch (err) {
+      console.error("❌ Error loading partners:", err);
+      setError("Failed to load business partners.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ✅ Add or update
-  const handleSave = (partner) => {
-    let updated;
-    if (editingPartner) {
-      updated = partners.map((p) => (p._id === partner._id ? partner : p));
-    } else {
-      updated = [...partners, partner];
+  useEffect(() => {
+    loadPartners();
+  }, []);
+
+  // ✅ Add or update partner
+  const handleSave = async (partner) => {
+    try {
+      const method = editingPartner ? "PUT" : "POST";
+      const url = editingPartner
+        ? `${API_BASE}/api/partners/${editingPartner._id}`
+        : `${API_BASE}/api/partners`;
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(partner),
+      });
+
+      if (!res.ok) throw new Error("Failed to save partner");
+      await loadPartners();
+      setShowModal(false);
+      setEditingPartner(null);
+    } catch (err) {
+      console.error("❌ Error saving partner:", err);
+      alert("Failed to save partner. Please try again.");
     }
-    savePartners(updated);
-    setShowModal(false);
-    setEditingPartner(null);
   };
 
   // ✅ Delete partner
-  const handleDelete = (id) => {
-    if (window.confirm("Delete this business partner?")) {
-      const updated = partners.filter((p) => p._id !== id);
-      savePartners(updated);
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this business partner?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/partners/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete partner");
+      await loadPartners();
+    } catch (err) {
+      console.error("❌ Error deleting partner:", err);
+      alert("Failed to delete partner.");
     }
   };
 
@@ -54,7 +85,11 @@ export default function BusinessPartners() {
         </button>
       </div>
 
-      {partners.length === 0 ? (
+      {loading ? (
+        <p className="text-muted">Loading partners...</p>
+      ) : error ? (
+        <p className="text-danger">{error}</p>
+      ) : partners.length === 0 ? (
         <p className="text-muted">No business partners added yet.</p>
       ) : (
         <table className="table table-striped table-bordered align-middle">
@@ -62,9 +97,7 @@ export default function BusinessPartners() {
             <tr>
               <th>Name</th>
               <th>Type</th>
-              <th>Contact Person</th>
-              <th>Phone</th>
-              <th>Email</th>
+              <th>Contacts</th>
               <th>Notes</th>
               <th style={{ width: "130px" }}>Actions</th>
             </tr>
@@ -74,10 +107,27 @@ export default function BusinessPartners() {
               <tr key={p._id}>
                 <td>{p.partnerName}</td>
                 <td>{p.type}</td>
-                <td>{p.contactPerson}</td>
-                <td>{p.phone}</td>
-                <td>{p.email}</td>
-                <td>{p.notes}</td>
+                <td>
+                  {p.contacts && p.contacts.length > 0 ? (
+                    p.contacts.map((c, i) => (
+                      <div key={i}>
+                        <strong>{c.name}</strong>
+                        <div className="small text-muted">
+                          {c.phone && <span>{c.phone}</span>}
+                          {c.email && (
+                            <>
+                              {c.phone && " • "}
+                              {c.email}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-muted">No contacts</span>
+                  )}
+                </td>
+                <td>{p.notes || "-"}</td>
                 <td>
                   <div className="d-flex gap-1">
                     <button

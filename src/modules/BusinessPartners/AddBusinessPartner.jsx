@@ -4,22 +4,50 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
   const [form, setForm] = useState({
     partnerName: "",
     type: "",
-    contactPerson: "",
-    phone: "",
-    email: "",
+    contacts: [{ name: "", phone: "", email: "" }],
     notes: "",
   });
 
   useEffect(() => {
     if (existingPartner) {
-      setForm(existingPartner);
+      setForm({
+        partnerName: existingPartner.partnerName || "",
+        type: existingPartner.type || "",
+        contacts: existingPartner.contacts?.length
+          ? existingPartner.contacts
+          : [{ name: "", phone: "", email: "" }],
+        notes: existingPartner.notes || "",
+      });
     }
   }, [existingPartner]);
 
+  // ✅ Handle partner-level field changes
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // ✅ Handle contact field changes
+  const handleContactChange = (index, field, value) => {
+    const updatedContacts = [...form.contacts];
+    updatedContacts[index][field] = value;
+    setForm({ ...form, contacts: updatedContacts });
+  };
+
+  // ✅ Add a new blank contact
+  const addContact = () => {
+    setForm({
+      ...form,
+      contacts: [...form.contacts, { name: "", phone: "", email: "" }],
+    });
+  };
+
+  // ✅ Remove a contact
+  const removeContact = (index) => {
+    const updated = form.contacts.filter((_, i) => i !== index);
+    setForm({ ...form, contacts: updated.length ? updated : [{ name: "", phone: "", email: "" }] });
+  };
+
+  // ✅ Submit form
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -28,9 +56,14 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
       return;
     }
 
+    const cleanedContacts = form.contacts.filter(
+      (c) => c.name.trim() || c.phone.trim() || c.email.trim()
+    );
+
     const newPartner = {
       ...form,
-      _id: existingPartner ? existingPartner._id : Date.now().toString(),
+      contacts: cleanedContacts,
+      _id: existingPartner ? existingPartner._id : undefined,
     };
 
     onSave(newPartner);
@@ -44,7 +77,7 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
     >
       <div
         className="bg-white rounded p-4 shadow position-relative"
-        style={{ width: "500px" }}
+        style={{ width: "550px", maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
         <h5 className="mb-3">
@@ -52,6 +85,7 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
         </h5>
 
         <form onSubmit={handleSubmit}>
+          {/* Partner Name */}
           <div className="mb-3">
             <label className="form-label">Partner Name</label>
             <input
@@ -64,6 +98,7 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
             />
           </div>
 
+          {/* Type Dropdown */}
           <div className="mb-3">
             <label className="form-label">Type</label>
             <select
@@ -81,39 +116,74 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
             </select>
           </div>
 
+          {/* Contacts Section */}
           <div className="mb-3">
-            <label className="form-label">Contact Person</label>
-            <input
-              type="text"
-              name="contactPerson"
-              className="form-control"
-              value={form.contactPerson}
-              onChange={handleChange}
-            />
+            <label className="form-label fw-semibold">Contacts</label>
+            {form.contacts.map((c, index) => (
+              <div
+                key={index}
+                className="border rounded p-2 mb-2 bg-light position-relative"
+              >
+                <div className="mb-2">
+                  <label className="form-label small mb-0">Name</label>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={c.name}
+                    onChange={(e) =>
+                      handleContactChange(index, "name", e.target.value)
+                    }
+                    placeholder="Contact name"
+                  />
+                </div>
+
+                <div className="mb-2">
+                  <label className="form-label small mb-0">Phone</label>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={c.phone}
+                    onChange={(e) =>
+                      handleContactChange(index, "phone", e.target.value)
+                    }
+                    placeholder="Phone number"
+                  />
+                </div>
+
+                <div className="mb-2">
+                  <label className="form-label small mb-0">Email</label>
+                  <input
+                    type="email"
+                    className="form-control form-control-sm"
+                    value={c.email}
+                    onChange={(e) =>
+                      handleContactChange(index, "email", e.target.value)
+                    }
+                    placeholder="Email address"
+                  />
+                </div>
+
+                {form.contacts.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-2"
+                    onClick={() => removeContact(index)}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm mt-1"
+              onClick={addContact}
+            >
+              + Add Another Contact
+            </button>
           </div>
 
-          <div className="mb-3">
-            <label className="form-label">Phone</label>
-            <input
-              type="text"
-              name="phone"
-              className="form-control"
-              value={form.phone}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label">Email</label>
-            <input
-              type="email"
-              name="email"
-              className="form-control"
-              value={form.email}
-              onChange={handleChange}
-            />
-          </div>
-
+          {/* Notes */}
           <div className="mb-3">
             <label className="form-label">Notes</label>
             <textarea
@@ -122,9 +192,11 @@ export default function AddBusinessPartner({ onClose, onSave, existingPartner })
               rows="3"
               value={form.notes}
               onChange={handleChange}
+              placeholder="Additional details (optional)"
             ></textarea>
           </div>
 
+          {/* Buttons */}
           <div className="d-flex justify-content-end">
             <button
               type="button"
