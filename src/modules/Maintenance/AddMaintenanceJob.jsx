@@ -7,46 +7,72 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
     task: "",
     description: "",
     supplier: "",
+    supplierId: "",
     bookedDate: "",
     status: "Booked",
   });
 
   const [assets, setAssets] = useState([]);
-  const [query, setQuery] = useState("");
+  const [engineers, setEngineers] = useState([]);
+  const [assetQuery, setAssetQuery] = useState("");
   const [filteredAssets, setFilteredAssets] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showAssetDropdown, setShowAssetDropdown] = useState(false);
+  const [engineerQuery, setEngineerQuery] = useState("");
+  const [filteredEngineers, setFilteredEngineers] = useState([]);
+  const [showEngineerDropdown, setShowEngineerDropdown] = useState(false);
+
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  // ✅ Fetch assets from backend
+  /* ============================================================
+     🔹 Fetch Assets + Engineers
+  ============================================================ */
   useEffect(() => {
     const fetchAssets = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/assets`);
         if (!res.ok) throw new Error("Failed to fetch assets");
         const data = await res.json();
+        console.log("✅ Loaded assets:", data.length);
         setAssets(data);
       } catch (err) {
         console.error("❌ Error loading assets:", err);
         setAssets([]);
       }
     };
+
+    const fetchEngineers = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/partners`);
+        if (!res.ok) throw new Error("Failed to fetch partners");
+        const data = await res.json();
+        const engineersOnly = data.filter((p) => p.type === "Engineer");
+        setEngineers(engineersOnly);
+      } catch (err) {
+        console.error("❌ Error loading engineers:", err);
+        setEngineers([]);
+      }
+    };
+
     fetchAssets();
+    fetchEngineers();
   }, [API_BASE]);
 
-  // ✅ If editing, preload
+  /* ============================================================
+     🔹 Preload existing job (Edit)
+  ============================================================ */
   useEffect(() => {
     if (existingJob) {
       setForm(existingJob);
-      setQuery(existingJob.assetName || existingJob.assetCode);
+      setAssetQuery(existingJob.assetName || existingJob.assetCode || "");
+      setEngineerQuery(existingJob.supplier || "");
     }
   }, [existingJob]);
 
-  // ✅ Filter assets by NAME (case-insensitive)
+  /* ============================================================
+     🔹 Asset Filtering (Flexible field matching)
+  ============================================================ */
   useEffect(() => {
-    if (query.trim() === "") {
-      setFilteredAssets([]);
-      return;
-    }
+    if (!assetQuery.trim()) return setFilteredAssets([]);
 
     const results = assets.filter((a) => {
       const name =
@@ -56,40 +82,72 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
         a.description ||
         a.asset_title ||
         "";
-      return name.toLowerCase().includes(query.toLowerCase());
+      return name.toLowerCase().includes(assetQuery.toLowerCase());
     });
 
     setFilteredAssets(results);
-  }, [query, assets]);
+  }, [assetQuery, assets]);
 
-  // ✅ Select asset
+  /* ============================================================
+     🔹 Engineer Filtering
+  ============================================================ */
+  useEffect(() => {
+    if (!engineerQuery.trim()) return setFilteredEngineers([]);
+    const results = engineers.filter((e) =>
+      e.partnerName.toLowerCase().includes(engineerQuery.toLowerCase())
+    );
+    setFilteredEngineers(results);
+  }, [engineerQuery, engineers]);
+
+  /* ============================================================
+     🔹 Selections
+  ============================================================ */
   const handleAssetSelect = (asset) => {
+    const name =
+      asset.assetName ||
+      asset.name ||
+      asset.asset_name ||
+      asset.description ||
+      asset.asset_title ||
+      "Unnamed";
+
     setForm({
       ...form,
       assetCode: asset.assetCode || asset.code || "",
-      assetName:
-        asset.assetName ||
-        asset.name ||
-        asset.asset_name ||
-        asset.description ||
-        "Unnamed",
+      assetName: name,
     });
-    setQuery(
-      asset.assetName ||
-        asset.name ||
-        asset.asset_name ||
-        asset.description ||
-        ""
-    );
-    setFilteredAssets([]);
-    setShowDropdown(false);
+    setAssetQuery(name);
+    setShowAssetDropdown(false);
   };
 
+  const handleEngineerSelect = (eng) => {
+    setForm({
+      ...form,
+      supplier: eng.partnerName,
+      supplierId: eng._id,
+    });
+    setEngineerQuery(eng.partnerName);
+    setShowEngineerDropdown(false);
+  };
+
+  /* ============================================================
+     🔹 Validation / Submission
+  ============================================================ */
   const handleSubmit = (e) => {
     e.preventDefault();
 
     if (!form.assetCode || !form.assetName) {
-      alert("Please select a valid asset from the list.");
+      alert("Please select a valid asset.");
+      return;
+    }
+
+    const validEngineer = engineers.find(
+      (eng) =>
+        eng.partnerName.toLowerCase() === form.supplier.toLowerCase() &&
+        eng._id === form.supplierId
+    );
+    if (!validEngineer) {
+      alert("Please select an engineer from the list.");
       return;
     }
 
@@ -101,10 +159,9 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
     onSave(newJob);
   };
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
+  /* ============================================================
+     🔹 Render
+  ============================================================ */
   return (
     <div
       className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50"
@@ -128,15 +185,16 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
               type="text"
               className="form-control"
               placeholder="Start typing asset name..."
-              value={query}
+              value={assetQuery}
               onChange={(e) => {
-                setQuery(e.target.value);
-                setShowDropdown(true);
+                setAssetQuery(e.target.value);
+                setShowAssetDropdown(true);
               }}
-              onFocus={() => setShowDropdown(true)}
-              onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+              onFocus={() => setShowAssetDropdown(true)}
+              // ⏱ longer delay prevents premature close
+              onBlur={() => setTimeout(() => setShowAssetDropdown(false), 200)}
             />
-            {showDropdown && filteredAssets.length > 0 && (
+            {showAssetDropdown && filteredAssets.length > 0 && (
               <ul
                 className="list-group position-absolute w-100 shadow-sm"
                 style={{
@@ -151,6 +209,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
                     asset.name ||
                     asset.asset_name ||
                     asset.description ||
+                    asset.asset_title ||
                     "Unnamed";
                   const code = asset.assetCode || asset.code || "";
                   return (
@@ -170,14 +229,16 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
             )}
           </div>
 
-          {/* ✅ Job Type Dropdown */}
+          {/* ✅ Job Type */}
           <div className="mb-2">
             <label className="form-label">Job Type</label>
             <select
               name="task"
               className="form-select"
               value={form.task}
-              onChange={handleChange}
+              onChange={(e) =>
+                setForm({ ...form, task: e.target.value })
+              }
               required
             >
               <option value="">-- Select Type --</option>
@@ -191,31 +252,69 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
             </select>
           </div>
 
-          {/* ✅ Description Textarea */}
+          {/* ✅ Description */}
           <div className="mb-3">
             <label className="form-label">Description / Details</label>
             <textarea
               name="description"
               className="form-control"
               rows="3"
-              placeholder="e.g. Replaced motor belt, repaired gearbox, recalibrated sensor..."
+              placeholder="e.g. Replaced motor belt, repaired gearbox..."
               value={form.description}
-              onChange={handleChange}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
             />
           </div>
 
-          <div className="mb-2">
-            <label className="form-label">Supplier / Engineer</label>
+          {/* ✅ Engineer Selector */}
+          <div className="mb-3 position-relative">
+            <label className="form-label">Engineer</label>
             <input
               type="text"
-              name="supplier"
               className="form-control"
-              value={form.supplier}
-              onChange={handleChange}
+              placeholder="Start typing engineer name..."
+              value={engineerQuery}
+              onChange={(e) => {
+                setEngineerQuery(e.target.value);
+                setShowEngineerDropdown(true);
+              }}
+              onFocus={() => setShowEngineerDropdown(true)}
+              onBlur={() =>
+                setTimeout(() => setShowEngineerDropdown(false), 200)
+              }
               required
             />
+            {showEngineerDropdown && filteredEngineers.length > 0 && (
+              <ul
+                className="list-group position-absolute w-100 shadow-sm"
+                style={{
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  zIndex: 9999,
+                }}
+              >
+                {filteredEngineers.map((eng) => (
+                  <li
+                    key={eng._id}
+                    className="list-group-item list-group-item-action"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleEngineerSelect(eng)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <strong>{eng.partnerName}</strong>
+                    {eng.contacts?.[0] && (
+                      <div className="small text-muted">
+                        {eng.contacts[0].email || eng.contacts[0].phone}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
+          {/* ✅ Booked Date */}
           <div className="mb-3">
             <label className="form-label">Booked Date</label>
             <input
@@ -223,18 +322,23 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
               name="bookedDate"
               className="form-control"
               value={form.bookedDate}
-              onChange={handleChange}
+              onChange={(e) =>
+                setForm({ ...form, bookedDate: e.target.value })
+              }
               required
             />
           </div>
 
+          {/* ✅ Status */}
           <div className="mb-3">
             <label className="form-label">Status</label>
             <select
               name="status"
               className="form-select"
               value={form.status}
-              onChange={handleChange}
+              onChange={(e) =>
+                setForm({ ...form, status: e.target.value })
+              }
             >
               <option>Booked</option>
               <option>Completed</option>
@@ -242,6 +346,7 @@ export default function AddMaintenanceJob({ onClose, onSave, existingJob }) {
             </select>
           </div>
 
+          {/* ✅ Buttons */}
           <div className="d-flex justify-content-end">
             <button
               type="button"
