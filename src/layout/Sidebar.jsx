@@ -5,19 +5,34 @@ import "bootstrap/dist/css/bootstrap.min.css";
 export default function Sidebar() {
   const location = useLocation();
 
-  // ✅ Set which modules are ready to show
+  // ✅ Control which modules are visible
+  const showDashboard = true;
   const showSafety = false;
-  const showMaintenance = false;
+  const showAssets = true;
+  const showBusinessPartners = true; // 👈 New module toggle
+
+  const showMaintenance = true; // 👈 External / Engineer jobs
+  const showPreventiveMaintenance = true; // 👈 In-House / Preventive tasks
+  const showMaintenanceCalendar = true; // 👈 Calendar dashboard
 
   const menuItems = [
-    { name: "Dashboard", path: "/" },
+    showDashboard && { name: "Dashboard", path: "/" },
     showSafety && { name: "Safety", path: "/safety" },
-    { name: "Assets", path: "/assets" },
-    showMaintenance && {
-      name: "Maintenance Calendar",
+    showAssets && { name: "Assets", path: "/assets" },
+    showBusinessPartners && {
+      name: "Business Partners",
+      path: "/business-partners",
+    },
+    showMaintenance && { name: "Maintenance", path: "/maintenance" },
+    showPreventiveMaintenance && {
+      name: "Preventive-Maintenance",
+      path: "/preventive-maintenance",
+    },
+    showMaintenanceCalendar && {
+      name: "Maintenance-Calendar",
       path: "/maintenance-calendar",
     },
-  ].filter(Boolean); // 🔹 removes false items
+  ].filter(Boolean); // removes false items
 
   return (
     <div

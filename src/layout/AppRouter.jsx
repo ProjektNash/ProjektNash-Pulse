@@ -4,7 +4,14 @@ import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import Login from "./Login";
 import Assets from "../modules/Assets/Assets";
+
+// --- Maintenance Modules ---
+import Maintenance from "../modules/Maintenance/Maintenance";
+import PreventiveMaintenance from "../modules/Preventive-Maintenance/PreventiveMaintenance";
 import MaintenanceCalendar from "../modules/Maintenance-Calendar/MaintenanceCalendar";
+
+// --- Business Partners Module ---
+import BusinessPartners from "../modules/BusinessPartners/BusinessPartners";
 
 // --- Temporary placeholder pages ---
 function Dashboard() {
@@ -12,15 +19,6 @@ function Dashboard() {
     <div className="p-4">
       <h3 className="mb-3">Dashboard</h3>
       <p className="text-secondary">Welcome to ProjektNash-Core.</p>
-    </div>
-  );
-}
-
-function Maintenance() {
-  return (
-    <div className="p-4">
-      <h3 className="mb-3">Maintenance Calendar</h3>
-      <MaintenanceCalendar />
     </div>
   );
 }
@@ -36,9 +34,7 @@ function Safety() {
 
 // --- Main Router ---
 export default function AppRouter() {
-  const [loggedIn, setLoggedIn] = useState(
-    localStorage.getItem("pn_loggedIn") === "true"
-  );
+  const [loggedIn, setLoggedIn] = useState(localStorage.getItem("pn_loggedIn") === "true");
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -72,10 +68,30 @@ export default function AppRouter() {
             <Navbar />
             <div className="container-fluid mt-3">
               <Routes>
+                {/* Dashboard */}
                 <Route path="/" element={<Dashboard />} />
+
+                {/* Safety */}
                 <Route path="/safety" element={<Safety />} />
+
+                {/* Assets */}
                 <Route path="/assets" element={<Assets />} />
-                <Route path="/maintenance-calendar" element={<Maintenance />} />
+
+                {/* Business Partners */}
+                <Route path="/business-partners" element={<BusinessPartners />} />
+
+                {/* Maintenance sections */}
+                <Route path="/maintenance" element={<Maintenance />} />
+                <Route
+                  path="/preventive-maintenance"
+                  element={<PreventiveMaintenance />}
+                />
+                <Route
+                  path="/maintenance-calendar"
+                  element={<MaintenanceCalendar />}
+                />
+
+                {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </div>
