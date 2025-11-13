@@ -39,6 +39,7 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
                 <td className="fw-semibold">{a.assetCode}</td>
                 <td>{a.name}</td>
                 <td>{a.category}</td>
+
                 <td>
                   <span
                     className={`badge ${
@@ -52,16 +53,31 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
                     {a.status}
                   </span>
                 </td>
+
                 <td>{a.supplier}</td>
+
+                {/* ✅ Purchase Cost formatted the same as inflated value */}
                 <td>
                   {a.purchaseCost
-                    ? `£${Number(a.purchaseCost).toFixed(2)}`
+                    ? `£${Number(a.purchaseCost).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
                     : "-"}
                 </td>
+
                 <td>{a.warrantyExpiry || "-"}</td>
+
+                {/* ✅ Inflated Value formatted with commas & 2 decimals */}
                 <td>
                   {a.latestInflatedValue
-                    ? `£${Number(a.latestInflatedValue).toLocaleString()}`
+                    ? `£${Number(a.latestInflatedValue).toLocaleString(
+                        undefined,
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }
+                      )}`
                     : "-"}
                 </td>
 
@@ -108,7 +124,7 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
         <AssetHistoryModal
           asset={historyAsset}
           onClose={() => setHistoryAsset(null)}
-          onRefresh={onRefresh}   // 🔄 refresh on close/saving
+          onRefresh={onRefresh}
         />
       )}
     </>

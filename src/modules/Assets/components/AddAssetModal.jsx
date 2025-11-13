@@ -34,26 +34,53 @@ export default function AddAssetModal({
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   /* ==========================================================
-     🔹 Fix: Convert "2020" → "2020-01-01"
+      🔹 Convert DB date → DD/MM/YYYY
   =========================================================== */
-  const fixPurchaseDate = (value) => {
-    if (!value) return value;
+  const toDisplayDate = (value) => {
+    if (!value) return "";
 
-    // If user enters only a 4-digit year
-    if (/^\d{4}$/.test(value)) {
-      return `${value}-01-01`;
-    }
+    // "2020"
+    if (/^\d{4}$/.test(value)) return value;
 
-    return value;
+    // "2020-03-14" → DD/MM/YYYY
+    const dt = new Date(value);
+    if (isNaN(dt)) return value;
+
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const y = dt.getFullYear();
+
+    return `${d}/${m}/${y}`;
   };
 
   /* ==========================================================
-     🔹 When modal opens — load existing or reset new
+      🔹 Convert DD/MM/YYYY → yyyy-mm-dd for saving
+  =========================================================== */
+  const toDatabaseDate = (value) => {
+    if (!value) return "";
+
+    // If only "2020" → convert to "2020-01-01"
+    if (/^\d{4}$/.test(value)) return `${value}-01-01`;
+
+    // dd/mm/yyyy → yyyy-mm-dd
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      const [d, m, y] = value.split("/");
+      return `${y}-${m}-${d}`;
+    }
+
+    return value; // fallback
+  };
+
+  /* ==========================================================
+     🔹 When modal opens
   =========================================================== */
   useEffect(() => {
     if (show) {
       if (existingAsset) {
-        setForm(existingAsset);
+        setForm({
+          ...existingAsset,
+          purchaseDate: toDisplayDate(existingAsset.purchaseDate),
+        });
         setAutoCode(existingAsset.assetCode || "");
       } else {
         setForm({ ...blankState, _id: undefined });
@@ -63,20 +90,21 @@ export default function AddAssetModal({
   }, [show, existingAsset]);
 
   /* ==========================================================
-     🔹 Handle field changes (with purchaseDate fixer)
+     🔹 Handle field changes
   =========================================================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name === "purchaseDate") {
-      setForm((prev) => ({ ...prev, purchaseDate: fixPurchaseDate(value) }));
-    } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
+      setForm((prev) => ({ ...prev, purchaseDate: value }));
+      return;
     }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   /* ==========================================================
-     🔹 Save or update asset
+     🔹 Save asset
   =========================================================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -92,8 +120,9 @@ export default function AddAssetModal({
 
       const payload = {
         ...cleanForm,
-        assetCode: autoCode,
         areaId,
+        assetCode: autoCode,
+        purchaseDate: toDatabaseDate(form.purchaseDate),
       };
 
       const url = existingAsset
@@ -122,7 +151,7 @@ export default function AddAssetModal({
   if (!show) return null;
 
   /* ==========================================================
-     🔹 Modal UI
+     🔹 UI
   =========================================================== */
   return (
     <div className="modal d-block bg-dark bg-opacity-50">
@@ -134,6 +163,7 @@ export default function AddAssetModal({
             {/* ===== Core Operations ===== */}
             <h6 className="fw-bold text-primary mt-2 mb-2">Core Operations</h6>
             <div className="row g-2 mb-3">
+
               <div className="col-md-4">
                 <label className="form-label small">Assigned Asset ID</label>
                 <input type="text" className="form-control" value={autoCode} readOnly />
@@ -161,6 +191,7 @@ export default function AddAssetModal({
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Model</label>
                 <input
@@ -171,6 +202,7 @@ export default function AddAssetModal({
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Serial Number</label>
                 <input
@@ -222,12 +254,13 @@ export default function AddAssetModal({
 
             {/* ===== Finance & Lifecycle ===== */}
             <h6 className="fw-bold text-primary mt-3 mb-2">Finance & Lifecycle</h6>
+
             <div className="row g-2 mb-3">
               <div className="col-md-4">
                 <label className="form-label small">Purchase Date</label>
                 <input
                   type="text"
-                  placeholder="yyyy-mm-dd or yyyy"
+                  placeholder="dd/mm/yyyy or yyyy"
                   className="form-control"
                   name="purchaseDate"
                   value={form.purchaseDate}
@@ -340,12 +373,27 @@ export default function AddAssetModal({
             </div>
 
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+                disabled={saving}
+              >
                 Cancel
               </button>
 
-              <button type="submit" className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`} disabled={saving}>
-                {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
+              <button
+                type="submit"
+                className={`btn ${
+                  existingAsset ? "btn-warning" : "btn-primary"
+                }`}
+                disabled={saving}
+              >
+                {saving
+                  ? "Saving..."
+                  : existingAsset
+                  ? "Update Asset"
+                  : "Save Asset"}
               </button>
             </div>
           </form>
