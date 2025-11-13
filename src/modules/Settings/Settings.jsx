@@ -6,6 +6,7 @@ export default function Settings() {
   const [inflationTable, setInflationTable] = useState([]);
   const [defaultRate, setDefaultRate] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   // New row fields
@@ -63,10 +64,13 @@ export default function Settings() {
   };
 
   /* ----------------------------------------------------------
-     Save settings to backend
+     Save settings + Recalculate ALL assets on backend
   ---------------------------------------------------------- */
   const handleSave = async () => {
     try {
+      setSaving(true);
+      setMessage("");
+
       const res = await fetch(`${API_BASE}/api/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -78,12 +82,18 @@ export default function Settings() {
 
       if (!res.ok) throw new Error("Failed to save");
 
-      setMessage("Settings saved successfully!");
-      setTimeout(() => setMessage(""), 3000);
+      setMessage("Settings saved — recalculating all assets…");
     } catch (err) {
       console.error("❌ Error saving settings:", err);
       alert("Failed to save settings.");
+      setSaving(false);
+      return;
     }
+
+    // ⭐ After a brief delay, reload the whole UI so updated values show everywhere
+    setTimeout(() => {
+      window.location.reload();
+    }, 800);
   };
 
   if (loading) {
@@ -94,10 +104,17 @@ export default function Settings() {
     <div className="container mt-4">
       <h3 className="mb-3">Finance Settings</h3>
       <p className="text-muted">
-        Configure default inflation rates used for asset value escalation.
+        Configure inflation rates used to escalate asset values.
       </p>
 
-      {message && (
+      {/* Global status messages */}
+      {saving && (
+        <div className="alert alert-info py-2">
+          Recalculating all asset values, please wait…
+        </div>
+      )}
+
+      {message && !saving && (
         <div className="alert alert-success py-2">{message}</div>
       )}
 
@@ -117,6 +134,7 @@ export default function Settings() {
               className="form-control"
               value={defaultRate}
               onChange={(e) => setDefaultRate(e.target.value)}
+              disabled={saving}
             />
           </div>
         </div>
@@ -138,6 +156,7 @@ export default function Settings() {
           </thead>
           <tbody>
             {inflationTable
+              .slice()
               .sort((a, b) => a.year - b.year)
               .map((row, index) => (
                 <tr key={index}>
@@ -149,6 +168,7 @@ export default function Settings() {
                       onChange={(e) =>
                         handleTableChange(index, "year", Number(e.target.value))
                       }
+                      disabled={saving}
                     />
                   </td>
                   <td>
@@ -160,6 +180,7 @@ export default function Settings() {
                       onChange={(e) =>
                         handleTableChange(index, "rate", Number(e.target.value))
                       }
+                      disabled={saving}
                     />
                   </td>
                 </tr>
@@ -167,7 +188,7 @@ export default function Settings() {
           </tbody>
         </table>
 
-        {/* ===================== Add New Year ===================== */}
+        {/* Add New Year */}
         <div className="card p-3 bg-light mt-3">
           <h6>Add New Year</h6>
 
@@ -179,6 +200,7 @@ export default function Settings() {
                 className="form-control"
                 value={newYear}
                 onChange={(e) => setNewYear(e.target.value)}
+                disabled={saving}
               />
             </div>
             <div className="col-md-3">
@@ -189,12 +211,14 @@ export default function Settings() {
                 className="form-control"
                 value={newRate}
                 onChange={(e) => setNewRate(e.target.value)}
+                disabled={saving}
               />
             </div>
             <div className="col-md-3">
               <button
                 className="btn btn-success w-100"
                 onClick={handleAddYear}
+                disabled={saving}
               >
                 + Add Year
               </button>
@@ -203,8 +227,12 @@ export default function Settings() {
         </div>
 
         {/* Save Settings */}
-        <button className="btn btn-primary mt-3" onClick={handleSave}>
-          Save Settings
+        <button
+          className="btn btn-primary mt-3"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Saving & recalculating…" : "Save Settings"}
         </button>
       </div>
     </div>
