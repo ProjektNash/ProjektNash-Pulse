@@ -6,6 +6,7 @@ const router = express.Router();
 
 /* ==========================================================
    🔹 GET all assets (optionally filter by area)
+   🔹 TRUE YEAR-BY-YEAR INFLATION HISTORY
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -16,36 +17,60 @@ router.get("/", async (req, res) => {
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
     console.log(`✅ Found ${assets.length} assets`);
 
-    // ⭐ Fetch inflation % from Settings
+    // Get inflation setting
     const settings = await Settings.findOne();
     const inflationRate = settings?.inflationRate || 0;
-
     const currentYear = new Date().getFullYear();
 
-    // ⭐ Apply inflation to each asset
-    const adjustedAssets = assets.map((asset) => {
-      const baseValue = asset.purchaseCost || 0;  // ⭐ FIXED: correct field
+    // Process each asset and manage stored inflation history
+    const adjustedAssets = await Promise.all(
+      assets.map(async (asset) => {
+        const baseCost = asset.purchaseCost || 0;
 
-      const purchaseYear = asset.purchaseDate
-        ? new Date(asset.purchaseDate).getFullYear()
-        : currentYear; // No purchase date → assume current year (0 years inflation)
+        // If no valueHistory exists → create first entry
+        if (!asset.valueHistory || asset.valueHistory.length === 0) {
+          asset.valueHistory = [
+            {
+              year: currentYear,
+              inflationRate: 0,
+              value: baseCost,
+            },
+          ];
+          await asset.save();
+        }
 
-      const yearsSince = currentYear - purchaseYear;
+        // Get the most recent stored year
+        let lastEntry = asset.valueHistory[asset.valueHistory.length - 1];
 
-      const adjustedValue =
-        baseValue > 0
-          ? baseValue * Math.pow(1 + inflationRate / 100, yearsSince)
-          : null;
+        // If asset history is behind → fill each missing year
+        while (lastEntry.year < currentYear) {
+          const nextYear = lastEntry.year + 1;
 
-      return {
-        ...asset.toObject(),
-        adjustedReplacementValue: adjustedValue
-          ? adjustedValue.toFixed(2)
-          : null,
-      };
-    });
+          const newValue =
+            lastEntry.value *
+            (1 + (inflationRate || 0) / 100);
 
-    // ⭐ Return updated asset objects
+          const newEntry = {
+            year: nextYear,
+            inflationRate,
+            value: Number(newValue.toFixed(2)),
+          };
+
+          asset.valueHistory.push(newEntry);
+          lastEntry = newEntry;
+        }
+
+        // Save history updates if added years
+        await asset.save();
+
+        return {
+          ...asset.toObject(),
+          latestInflatedValue: lastEntry.value,
+          latestInflationRate: lastEntry.inflationRate,
+        };
+      })
+    );
+
     res.json(adjustedAssets);
   } catch (err) {
     console.error("❌ Error fetching assets:", err);

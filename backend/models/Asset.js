@@ -35,6 +35,18 @@ const assetSchema = new mongoose.Schema(
       required: true,
     },
 
+    /* ⭐ NEW: Annual value tracking history */
+    valueHistory: {
+      type: [
+        {
+          year: Number,
+          inflationRate: Number,
+          value: Number,
+        },
+      ],
+      default: [],
+    },
+
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false }
@@ -42,10 +54,6 @@ const assetSchema = new mongoose.Schema(
 
 /* ==========================================================
    ✅ Pre-save hook: Auto-assign next sequential code
-   ----------------------------------------------------------
-   - Finds the highest AST-#### in DB
-   - Increments by +1 safely
-   - Prevents race collisions using a short retry loop
 ========================================================== */
 assetSchema.pre("save", async function (next) {
   try {
@@ -68,8 +76,10 @@ assetSchema.pre("save", async function (next) {
 
         const newCode = `AST-${String(nextNum).padStart(4, "0")}`;
 
-        // Check if it already exists (safety against concurrent writes)
-        const exists = await mongoose.model("Asset").exists({ assetCode: newCode });
+        const exists = await mongoose
+          .model("Asset")
+          .exists({ assetCode: newCode });
+
         if (!exists) {
           this.assetCode = newCode;
           assigned = true;

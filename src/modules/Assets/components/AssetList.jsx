@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import AddAssetModal from "./AddAssetModal";
+import AssetHistoryModal from "./AssetHistoryModal";
 
 export default function AssetList({ assets, onDelete, onEdit }) {
   const [editingAsset, setEditingAsset] = useState(null);
+  const [historyAsset, setHistoryAsset] = useState(null); // ⭐ NEW
 
   const handleEditSave = (updatedAsset) => {
     onEdit(updatedAsset);
@@ -26,11 +28,8 @@ export default function AssetList({ assets, onDelete, onEdit }) {
               <th style={{ width: "15%" }}>Supplier</th>
               <th style={{ width: "10%" }}>Purchase Cost (£)</th>
               <th style={{ width: "10%" }}>Warranty Expiry</th>
-
-              {/* ⭐ NEW COLUMN added */}
               <th style={{ width: "15%" }}>Inflated Replacement Value (£)</th>
-
-              <th className="text-center" style={{ width: "10%" }}>
+              <th className="text-center" style={{ width: "15%" }}>
                 Actions
               </th>
             </tr>
@@ -67,14 +66,20 @@ export default function AssetList({ assets, onDelete, onEdit }) {
 
                 <td>{a.warrantyExpiry || "-"}</td>
 
-                {/* ⭐ NEW CELL — Inflation-adjusted value */}
                 <td>
-                  {a.adjustedReplacementValue
-                    ? `£${Number(a.adjustedReplacementValue).toLocaleString()}`
+                  {a.latestInflatedValue
+                    ? `£${Number(a.latestInflatedValue).toLocaleString()}`
                     : "-"}
                 </td>
 
                 <td className="text-center">
+                  <button
+                    className="btn btn-outline-info btn-sm me-2"
+                    onClick={() => setHistoryAsset(a)} // ⭐ NEW
+                  >
+                    History
+                  </button>
+
                   <button
                     className="btn btn-outline-primary btn-sm me-2"
                     onClick={() => setEditingAsset(a)}
@@ -102,6 +107,14 @@ export default function AssetList({ assets, onDelete, onEdit }) {
           onClose={() => setEditingAsset(null)}
           onSave={handleEditSave}
           existingAsset={editingAsset}
+        />
+      )}
+
+      {/* ⭐ History Modal */}
+      {historyAsset && (
+        <AssetHistoryModal
+          asset={historyAsset}
+          onClose={() => setHistoryAsset(null)}
         />
       )}
     </>
