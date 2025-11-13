@@ -1,22 +1,24 @@
 import mongoose from "mongoose";
 
+// Schema for each year's inflation rate
 const inflationYearSchema = new mongoose.Schema(
   {
     year: { type: Number, required: true },
-    rate: { type: Number, required: true }, // % for that year
+    rate: { type: Number, required: true }, // % inflation for that year
   },
   { _id: false }
 );
 
+// Settings schema
 const settingSchema = new mongoose.Schema(
   {
-    // legacy single rate (kept for backwards compatibility / fallback)
+    // Legacy field (kept for backwards compatibility — backend still checks it)
     inflationRate: { type: Number, default: 0 },
 
-    // default rate when a year is missing from the table
+    // Used when a year has no entry in the inflationTable
     defaultInflationRate: { type: Number, default: 0 },
 
-    // main per-year inflation table
+    // Main per-year inflation table
     inflationTable: [inflationYearSchema],
   },
   { timestamps: true }

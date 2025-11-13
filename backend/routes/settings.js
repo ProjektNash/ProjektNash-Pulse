@@ -22,14 +22,14 @@ const DEFAULT_INFLATION_TABLE = [
 ];
 
 /* ----------------------------------------------------------
-   Ensure settings exist
+   Ensure a Settings document always exists
 ---------------------------------------------------------- */
 async function getOrCreateSettings() {
   let settings = await Setting.findOne();
   if (!settings) {
     settings = new Setting({
-      inflationRate: 2,
-      defaultInflationRate: 2,
+      inflationRate: 0,
+      defaultInflationRate: 0,
       inflationTable: DEFAULT_INFLATION_TABLE,
     });
     await settings.save();
@@ -38,15 +38,17 @@ async function getOrCreateSettings() {
 }
 
 /* ----------------------------------------------------------
-   Helper: get inflation rate for year
+   Helper: get inflation rate for a year
 ---------------------------------------------------------- */
 function getRateForYear(year, settings) {
-  const found = settings.inflationTable.find((r) => r.year === year);
-  return found ? Number(found.rate) : Number(settings.defaultInflationRate);
+  const row = settings.inflationTable.find(r => r.year === year);
+  if (row) return Number(row.rate);
+
+  return Number(settings.defaultInflationRate);
 }
 
 /* ----------------------------------------------------------
-   Recompute history for a single asset
+   Rebuild history for a single asset
 ---------------------------------------------------------- */
 function rebuildHistory(asset, settings) {
   const currentYear = new Date().getFullYear();
@@ -54,7 +56,7 @@ function rebuildHistory(asset, settings) {
 
   let baseYear = currentYear;
 
-  // Determine purchase year
+  // Work out purchase year
   if (asset.purchaseDate) {
     let parsed;
     if (/^\d{4}$/.test(asset.purchaseDate)) {
@@ -73,14 +75,14 @@ function rebuildHistory(asset, settings) {
   let year = baseYear;
   let value = baseCost;
 
-  // Year 1
+  // Base year
   history.push({
     year,
     inflationRate: 0,
     value: Number(value.toFixed(2)),
   });
 
-  // Future years
+  // Following years
   while (year < currentYear) {
     year++;
     const rate = getRateForYear(year, settings);
@@ -109,7 +111,7 @@ router.get("/", async (req, res) => {
 });
 
 /* ----------------------------------------------------------
-   PUT /api/settings — SAVE + RECALCULATE ALL ASSETS
+   PUT /api/settings — Save + Recalculate ALL Assets
 ---------------------------------------------------------- */
 router.put("/", async (req, res) => {
   try {
@@ -117,28 +119,28 @@ router.put("/", async (req, res) => {
 
     const { inflationTable, defaultInflationRate } = req.body;
 
-    // Update settings
+    // Update inflation table
     if (Array.isArray(inflationTable)) {
       settings.inflationTable = inflationTable
-        .map((r) => ({
+        .map(r => ({
           year: Number(r.year),
           rate: Number(r.rate),
         }))
         .sort((a, b) => a.year - b.year);
     }
 
+    // Update default rate
     settings.defaultInflationRate = Number(defaultInflationRate) || 0;
+
     await settings.save();
 
-    // Recalculate all assets
+    // Recalculate *all* assets
     const assets = await Asset.find();
-
     let updatedCount = 0;
 
     for (const asset of assets) {
       asset.valueHistory = rebuildHistory(asset, settings);
       await asset.save();
-
       updatedCount++;
     }
 
@@ -155,3 +157,4 @@ router.put("/", async (req, res) => {
 });
 
 export default router;
+

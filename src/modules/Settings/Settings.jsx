@@ -65,6 +65,7 @@ export default function Settings() {
 
   /* ----------------------------------------------------------
      Save settings + Recalculate ALL assets on backend
+     (NO MORE PAGE RELOAD — FIXES 404)
   ---------------------------------------------------------- */
   const handleSave = async () => {
     try {
@@ -83,17 +84,18 @@ export default function Settings() {
       if (!res.ok) throw new Error("Failed to save");
 
       setMessage("Settings saved — recalculating all assets…");
+
+      // Wait for backend to finish → Reload settings table only
+      setTimeout(() => {
+        loadSettings();
+        setSaving(false);
+      }, 1000);
+
     } catch (err) {
       console.error("❌ Error saving settings:", err);
       alert("Failed to save settings.");
       setSaving(false);
-      return;
     }
-
-    // ⭐ After a brief delay, reload the whole UI so updated values show everywhere
-    setTimeout(() => {
-      window.location.reload();
-    }, 800);
   };
 
   if (loading) {

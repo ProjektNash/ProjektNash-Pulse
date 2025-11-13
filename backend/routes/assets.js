@@ -5,7 +5,7 @@ import Settings from "../models/Setting.js";
 const router = express.Router();
 
 /* ==========================================================
-   Helpers for Settings + Inflation
+   SETTINGS HELPERS
 ========================================================== */
 
 const DEFAULT_INFLATION_TABLE = [
@@ -26,7 +26,6 @@ async function getOrCreateSettings() {
   let settings = await Settings.findOne();
   if (!settings) {
     settings = new Settings({
-      inflationRate: 2,
       defaultInflationRate: 2,
       inflationTable: DEFAULT_INFLATION_TABLE,
     });
@@ -35,56 +34,82 @@ async function getOrCreateSettings() {
   return settings;
 }
 
+/* ==========================================================
+   HISTORY HELPERS
+========================================================== */
+
 function sortHistory(history = []) {
   return [...history].sort((a, b) => a.year - b.year);
 }
 
-function recomputeHistoryValues(history, startIndex, baseCost) {
-  const sorted = sortHistory(history);
-
-  for (let i = startIndex; i < sorted.length; i++) {
-    const prevValue = i === 0 ? (baseCost || 0) : sorted[i - 1].value || 0;
-    const rate = sorted[i].inflationRate || 0;
-    const newValue = prevValue * (1 + rate / 100);
-    sorted[i].value = Number(newValue.toFixed(2));
-  }
-
-  return sorted;
-}
-
-/* Get default rate for a given year from Settings */
 function getRateForYear(year, settings) {
   const table = settings?.inflationTable || [];
-  const found = table.find((r) => r.year === year);
-  if (found && typeof found.rate === "number") return found.rate;
+  const row = table.find((r) => r.year === year);
+  if (row) return Number(row.rate);
 
-  // fallback to defaultInflationRate or legacy inflationRate
-  if (
-    settings &&
-    typeof settings.defaultInflationRate === "number" &&
-    !Number.isNaN(settings.defaultInflationRate)
-  ) {
-    return settings.defaultInflationRate;
+  return Number(settings.defaultInflationRate || 0);
+}
+
+function rebuildHistory(asset, settings) {
+  const currentYear = new Date().getFullYear();
+  const baseCost = asset.purchaseCost || 0;
+
+  // Detect purchase year
+  let baseYear = currentYear;
+
+  if (asset.purchaseDate) {
+    let parsed;
+
+    if (/^\d{4}$/.test(asset.purchaseDate)) {
+      parsed = new Date(`${asset.purchaseDate}-01-01`);
+    } else {
+      parsed = new Date(asset.purchaseDate);
+    }
+
+    if (!isNaN(parsed)) baseYear = parsed.getFullYear();
+  } else {
+    baseYear = new Date(asset.createdAt).getFullYear();
   }
-  if (
-    settings &&
-    typeof settings.inflationRate === "number" &&
-    !Number.isNaN(settings.inflationRate)
-  ) {
-    return settings.inflationRate;
+
+  if (baseYear > currentYear) baseYear = currentYear;
+
+  const history = [];
+  let year = baseYear;
+  let value = baseCost;
+
+  // Base year — no inflation
+  history.push({
+    year,
+    inflationRate: 0,
+    value: Number(value.toFixed(2)),
+  });
+
+  // Future years
+  while (year < currentYear) {
+    year++;
+    const rate = getRateForYear(year, settings);
+    value = value * (1 + rate / 100);
+
+    history.push({
+      year,
+      inflationRate: rate,
+      value: Number(value.toFixed(2)),
+    });
   }
-  return 0;
+
+  return history;
 }
 
 /* ==========================================================
-   🔹 GET all assets (build valueHistory using per-year rates)
+   🔹 GET ALL ASSETS
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
     const { areaId } = req.query;
-    const filter = areaId ? { areaId } : {};
 
+    const filter = areaId ? { areaId } : {};
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
+
     const settings = await getOrCreateSettings();
     const currentYear = new Date().getFullYear();
 
@@ -92,62 +117,36 @@ router.get("/", async (req, res) => {
       assets.map(async (asset) => {
         const baseCost = asset.purchaseCost || 0;
 
-        // ---- Purchase year detection ----
+        // --- Detect purchase year ---
         let baseYear = currentYear;
+
         if (asset.purchaseDate) {
-          let py;
+          let parsed;
+
           if (/^\d{4}$/.test(asset.purchaseDate)) {
-            py = new Date(`${asset.purchaseDate}-01-01`);
+            parsed = new Date(`${asset.purchaseDate}-01-01`);
           } else {
-            py = new Date(asset.purchaseDate);
+            parsed = new Date(asset.purchaseDate);
           }
-          if (!Number.isNaN(py)) {
-            baseYear = py.getFullYear();
-          }
+
+          if (!isNaN(parsed)) baseYear = parsed.getFullYear();
         } else if (asset.createdAt) {
           baseYear = new Date(asset.createdAt).getFullYear();
         }
+
         if (baseYear > currentYear) baseYear = currentYear;
 
         let history = sortHistory(asset.valueHistory || []);
 
         const expectedYears = currentYear - baseYear + 1;
-        const historyStart = history.length ? history[0].year : null;
-        const historyEnd = history.length
-          ? history[history.length - 1].year
-          : null;
-
-        const historyIsIncomplete =
-          history.length === 0 ||
+        const historyIsInvalid =
           history.length !== expectedYears ||
-          historyStart !== baseYear ||
-          historyEnd !== currentYear;
+          (history.length && history[0].year !== baseYear) ||
+          (history.length && history[history.length - 1].year !== currentYear);
 
-        if (historyIsIncomplete) {
-          // 🔧 Rebuild full history using per-year rates
-          const newHistory = [];
-          let year = baseYear;
-          let lastValue = baseCost;
-
-          // base year: 0% inflation
-          newHistory.push({
-            year,
-            inflationRate: 0,
-            value: Number(lastValue.toFixed(2)),
-          });
-
-          while (year < currentYear) {
-            year++;
-            const rateForYear = getRateForYear(year, settings);
-            lastValue = lastValue * (1 + rateForYear / 100);
-
-            newHistory.push({
-              year,
-              inflationRate: rateForYear,
-              value: Number(lastValue.toFixed(2)),
-            });
-          }
-
+        // Rebuild if missing or wrong
+        if (historyIsInvalid) {
+          const newHistory = rebuildHistory(asset, settings);
           asset.valueHistory = newHistory;
           history = newHistory;
           await asset.save();
@@ -165,13 +164,13 @@ router.get("/", async (req, res) => {
 
     res.json(adjustedAssets);
   } catch (err) {
-    console.error("❌ Error fetching assets:", err);
+    console.error("❌ Error loading assets:", err);
     res.status(500).json({ error: "Failed to load assets" });
   }
 });
 
 /* ==========================================================
-   CREATE asset
+   🔹 CREATE ASSET
 ========================================================== */
 router.post("/", async (req, res) => {
   try {
@@ -189,7 +188,7 @@ router.post("/", async (req, res) => {
 });
 
 /* ==========================================================
-   UPDATE asset
+   🔹 UPDATE ASSET
 ========================================================== */
 router.put("/:id", async (req, res) => {
   try {
@@ -200,9 +199,7 @@ router.put("/:id", async (req, res) => {
       new: true,
     });
 
-    if (!updated) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
+    if (!updated) return res.status(404).json({ error: "Asset not found" });
 
     res.json({ message: "Asset updated", asset: updated });
   } catch (err) {
@@ -212,60 +209,13 @@ router.put("/:id", async (req, res) => {
 });
 
 /* ==========================================================
-   UPDATE value history for specific year (manual override)
+   🔹 MANUAL OVERRIDE — update one year in history
 ========================================================== */
 router.put("/:id/history", async (req, res) => {
   try {
-    const { id } = req.params;
-    let { year, inflationRate } = req.body;
-
-    year = Number(year);
-    inflationRate = Number(inflationRate);
-
-    if (!year || Number.isNaN(year)) {
-      return res.status(400).json({ error: "Valid 'year' is required" });
-    }
-    if (Number.isNaN(inflationRate)) {
-      return res
-        .status(400)
-        .json({ error: "Valid 'inflationRate' is required" });
-    }
-
-    const asset = await Asset.findById(id);
-    if (!asset) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
-
-    const baseCost = asset.purchaseCost || 0;
-    let history = sortHistory(asset.valueHistory || []);
-
-    if (!history.length) {
-      return res
-        .status(400)
-        .json({ error: "No value history exists for this asset yet." });
-    }
-
-    const idx = history.findIndex((h) => h.year === year);
-    if (idx === -1) {
-      return res.status(404).json({ error: `Year ${year} not found` });
-    }
-
-    // Manual override
-    history[idx].inflationRate = inflationRate;
-    history = recomputeHistoryValues(history, idx, baseCost);
-
-    asset.valueHistory = history;
-    await asset.save();
-
-    const latest = history[history.length - 1];
-
-    res.json({
-      message: "History updated",
-      asset: {
-        ...asset.toObject(),
-        latestInflatedValue: latest?.value ?? null,
-        latestInflationRate: latest?.inflationRate ?? null,
-      },
+    return res.status(400).json({
+      error:
+        "Manual inflation editing is disabled. All inflation now comes from Settings.",
     });
   } catch (err) {
     console.error("❌ Error updating history:", err);
@@ -274,14 +224,12 @@ router.put("/:id/history", async (req, res) => {
 });
 
 /* ==========================================================
-   DELETE asset
+   🔹 DELETE ASSET
 ========================================================== */
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await Asset.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
+    if (!deleted) return res.status(404).json({ error: "Asset not found" });
 
     res.json({ message: "Asset deleted" });
   } catch (err) {
