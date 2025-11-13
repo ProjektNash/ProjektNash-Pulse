@@ -1,89 +1,238 @@
-import express from "express";
-import Setting from "../models/Setting.js";
+import React, { useEffect, useState } from "react";
 
-const router = express.Router();
+export default function Settings() {
+  const API_BASE = import.meta.env.VITE_API_BASE;
 
-/* ---------------------------------------------
-   Default inflation table (you can edit later)
-   – rough UK-style yearly rates, adjustable
---------------------------------------------- */
-const DEFAULT_INFLATION_TABLE = [
-  { year: 2015, rate: 0.0 },
-  { year: 2016, rate: 1.0 },
-  { year: 2017, rate: 2.7 },
-  { year: 2018, rate: 2.5 },
-  { year: 2019, rate: 1.8 },
-  { year: 2020, rate: 1.4 },
-  { year: 2021, rate: 2.0 },
-  { year: 2022, rate: 9.1 },
-  { year: 2023, rate: 6.8 },
-  { year: 2024, rate: 3.0 },
-  { year: 2025, rate: 2.5 },
-];
+  const [inflationTable, setInflationTable] = useState([]);
+  const [defaultRate, setDefaultRate] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);      // ⭐ NEW
+  const [message, setMessage] = useState("");
 
-/* ---------------------------------------------
-   Helper: get or create single settings doc
---------------------------------------------- */
-async function getOrCreateSettings() {
-  let settings = await Setting.findOne();
-  if (!settings) {
-    settings = new Setting({
-      inflationRate: 2, // legacy / fallback
-      defaultInflationRate: 2,
-      inflationTable: DEFAULT_INFLATION_TABLE,
-    });
-    await settings.save();
+  // New row fields
+  const [newYear, setNewYear] = useState("");
+  const [newRate, setNewRate] = useState("");
+
+  /* ----------------------------------------------------------
+     Load Settings + Inflation Table
+  ---------------------------------------------------------- */
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/settings`);
+      const data = await res.json();
+
+      setInflationTable(data.inflationTable || []);
+      setDefaultRate(data.defaultInflationRate || 0);
+    } catch (err) {
+      console.error("❌ Failed to load settings:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ----------------------------------------------------------
+     Update a row in the inflation table
+  ---------------------------------------------------------- */
+  const handleTableChange = (index, field, value) => {
+    const updated = [...inflationTable];
+    updated[index][field] = value;
+    setInflationTable(updated);
+  };
+
+  /* ----------------------------------------------------------
+     Add a new inflation year
+  ---------------------------------------------------------- */
+  const handleAddYear = () => {
+    if (!newYear || !newRate) return alert("Enter both year and rate.");
+
+    if (inflationTable.some((row) => row.year === Number(newYear))) {
+      return alert("That year already exists.");
+    }
+
+    setInflationTable((prev) => [
+      ...prev,
+      { year: Number(newYear), rate: Number(newRate) },
+    ]);
+
+    setNewYear("");
+    setNewRate("");
+  };
+
+  /* ----------------------------------------------------------
+     Save settings to backend
+     (recalculates ALL assets on backend)
+  ---------------------------------------------------------- */
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setMessage("");
+
+      const res = await fetch(`${API_BASE}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inflationTable,
+          defaultInflationRate: Number(defaultRate),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+
+      setMessage("Settings saved and all assets recalculated.");
+    } catch (err) {
+      console.error("❌ Error saving settings:", err);
+      alert("Failed to save settings.");
+    } finally {
+      setSaving(false);
+      // Clear success message after a few seconds
+      setTimeout(() => setMessage(""), 4000);
+    }
+  };
+
+  if (loading) {
+    return <p className="p-4">Loading settings...</p>;
   }
-  return settings;
+
+  return (
+    <div className="container mt-4">
+      <h3 className="mb-3">Finance Settings</h3>
+      <p className="text-muted">
+        Configure default inflation rates used for asset value escalation.
+      </p>
+
+      {/* Global status messages */}
+      {saving && (
+        <div className="alert alert-info py-2">
+          Recalculating all asset values based on these settings, please wait...
+        </div>
+      )}
+
+      {message && !saving && (
+        <div className="alert alert-success py-2">{message}</div>
+      )}
+
+      {/* ===================== Default Rate ===================== */}
+      <div className="card p-3 mb-4">
+        <h5>Default Inflation Rate</h5>
+        <p className="text-muted small">
+          Used for years not defined in the table.
+        </p>
+
+        <div className="row g-2">
+          <div className="col-md-4">
+            <label className="form-label small">Default Rate (%)</label>
+            <input
+              type="number"
+              step="0.1"
+              className="form-control"
+              value={defaultRate}
+              onChange={(e) => setDefaultRate(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== Inflation Table ===================== */}
+      <div className="card p-3">
+        <h5>Yearly Inflation Rates</h5>
+        <p className="text-muted small">
+          These override the default rate for specific years.
+        </p>
+
+        <table className="table table-bordered mt-2">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: "25%" }}>Year</th>
+              <th style={{ width: "25%" }}>Inflation Rate (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inflationTable
+              .slice()
+              .sort((a, b) => a.year - b.year)
+              .map((row, index) => (
+                <tr key={index}>
+                  <td>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={row.year}
+                      onChange={(e) =>
+                        handleTableChange(index, "year", Number(e.target.value))
+                      }
+                      disabled={saving}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-control"
+                      value={row.rate}
+                      onChange={(e) =>
+                        handleTableChange(index, "rate", Number(e.target.value))
+                      }
+                      disabled={saving}
+                    />
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+
+        {/* ===================== Add New Year ===================== */}
+        <div className="card p-3 bg-light mt-3">
+          <h6>Add New Year</h6>
+
+          <div className="row g-2">
+            <div className="col-md-3">
+              <input
+                type="number"
+                placeholder="Year"
+                className="form-control"
+                value={newYear}
+                onChange={(e) => setNewYear(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <div className="col-md-3">
+              <input
+                type="number"
+                step="0.1"
+                placeholder="Rate %"
+                className="form-control"
+                value={newRate}
+                onChange={(e) => setNewRate(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <div className="col-md-3">
+              <button
+                className="btn btn-success w-100"
+                onClick={handleAddYear}
+                disabled={saving}
+              >
+                + Add Year
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Save Settings */}
+        <button
+          className="btn btn-primary mt-3"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Saving & recalculating..." : "Save Settings"}
+        </button>
+      </div>
+    </div>
+  );
 }
-
-/* ==========================================================
-   GET /api/settings
-   – returns settings (and creates defaults if needed)
-========================================================== */
-router.get("/", async (req, res) => {
-  try {
-    const settings = await getOrCreateSettings();
-    res.json(settings);
-  } catch (err) {
-    console.error("❌ Error loading settings:", err);
-    res.status(500).json({ error: "Failed to load settings" });
-  }
-});
-
-/* ==========================================================
-   PUT /api/settings
-   – update inflation table / default rate
-========================================================== */
-router.put("/", async (req, res) => {
-  try {
-    let settings = await getOrCreateSettings();
-
-    const { inflationTable, defaultInflationRate } = req.body;
-
-    if (Array.isArray(inflationTable)) {
-      settings.inflationTable = inflationTable
-        .map((row) => ({
-          year: Number(row.year),
-          rate: Number(row.rate),
-        }))
-        .filter((row) => !Number.isNaN(row.year) && !Number.isNaN(row.rate))
-        .sort((a, b) => a.year - b.year);
-    }
-
-    if (
-      defaultInflationRate !== undefined &&
-      !Number.isNaN(Number(defaultInflationRate))
-    ) {
-      settings.defaultInflationRate = Number(defaultInflationRate);
-    }
-
-    await settings.save();
-    res.json({ message: "Settings updated", settings });
-  } catch (err) {
-    console.error("❌ Error updating settings:", err);
-    res.status(500).json({ error: "Failed to update settings" });
-  }
-});
-
-export default router;
