@@ -5,97 +5,148 @@ import Settings from "../models/Setting.js";
 const router = express.Router();
 
 /* ==========================================================
-   🔹 GET all assets (optionally filter by area)
-   🔹 TRUE YEAR-BY-YEAR INFLATION HISTORY
+   🔹 Helper: sort history by year
+========================================================== */
+function sortHistory(history = []) {
+  return [...history].sort((a, b) => a.year - b.year);
+}
+
+/* ==========================================================
+   🔹 Helper: recompute values from a given index onward
+========================================================== */
+function recomputeHistoryValues(history, startIndex, baseCost) {
+  const sorted = sortHistory(history);
+
+  for (let i = startIndex; i < sorted.length; i++) {
+    const prevValue = i === 0 ? baseCost : sorted[i - 1].value;
+    const rate = sorted[i].inflationRate || 0;
+
+    sorted[i].value = Number((prevValue * (1 + rate / 100)).toFixed(2));
+  }
+
+  return sorted;
+}
+
+/* ==========================================================
+   🔹 GET all assets (backfill years + inflation history)
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
     const { areaId } = req.query;
     const filter = areaId ? { areaId } : {};
-    console.log("🔍 Fetching assets with filter:", filter);
 
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
-    console.log(`✅ Found ${assets.length} assets`);
 
-    // Get inflation setting
     const settings = await Settings.findOne();
-    const inflationRate = settings?.inflationRate || 0;
+    const defaultInflationRate = settings?.inflationRate || 0;
+
     const currentYear = new Date().getFullYear();
 
-    // Process each asset and manage stored inflation history
     const adjustedAssets = await Promise.all(
       assets.map(async (asset) => {
         const baseCost = asset.purchaseCost || 0;
 
-        // If no valueHistory exists → create first entry
-        if (!asset.valueHistory || asset.valueHistory.length === 0) {
-          asset.valueHistory = [
-            {
-              year: currentYear,
-              inflationRate: 0,
-              value: baseCost,
-            },
-          ];
+        // ------ PARSE purchaseDate safely ------
+        let baseYear = currentYear;
+
+        if (asset.purchaseDate) {
+          let py;
+
+          // If user typed: "2020"
+          if (/^\d{4}$/.test(asset.purchaseDate)) {
+            py = new Date(`${asset.purchaseDate}-01-01`);
+          } else {
+            py = new Date(asset.purchaseDate);
+          }
+
+          if (!isNaN(py)) {
+            baseYear = py.getFullYear();
+          }
+        } else if (asset.createdAt) {
+          baseYear = new Date(asset.createdAt).getFullYear();
+        }
+
+        if (baseYear > currentYear) baseYear = currentYear;
+
+        let history = sortHistory(asset.valueHistory || []);
+
+        // ------ Seed history if missing ------
+        if (history.length === 0) {
+          let year = baseYear;
+          let lastValue = baseCost;
+
+          history.push({
+            year,
+            inflationRate: 0,
+            value: Number(lastValue.toFixed(2)),
+          });
+
+          while (year < currentYear) {
+            year++;
+            lastValue = lastValue * (1 + defaultInflationRate / 100);
+
+            history.push({
+              year,
+              inflationRate: defaultInflationRate,
+              value: Number(lastValue.toFixed(2)),
+            });
+          }
+
+          asset.valueHistory = history;
+          await asset.save();
+        } else {
+          // ------ Ensure all missing years are added ------
+          history = sortHistory(history);
+          let lastYear = history[history.length - 1].year;
+          let lastValue = history[history.length - 1].value;
+
+          while (lastYear < currentYear) {
+            lastYear++;
+            lastValue = lastValue * (1 + defaultInflationRate / 100);
+
+            history.push({
+              year: lastYear,
+              inflationRate: defaultInflationRate,
+              value: Number(lastValue.toFixed(2)),
+            });
+          }
+
+          asset.valueHistory = history;
           await asset.save();
         }
 
-        // Get the most recent stored year
-        let lastEntry = asset.valueHistory[asset.valueHistory.length - 1];
-
-        // If asset history is behind → fill each missing year
-        while (lastEntry.year < currentYear) {
-          const nextYear = lastEntry.year + 1;
-
-          const newValue =
-            lastEntry.value *
-            (1 + (inflationRate || 0) / 100);
-
-          const newEntry = {
-            year: nextYear,
-            inflationRate,
-            value: Number(newValue.toFixed(2)),
-          };
-
-          asset.valueHistory.push(newEntry);
-          lastEntry = newEntry;
-        }
-
-        // Save history updates if added years
-        await asset.save();
+        const latest = asset.valueHistory[asset.valueHistory.length - 1];
 
         return {
           ...asset.toObject(),
-          latestInflatedValue: lastEntry.value,
-          latestInflationRate: lastEntry.inflationRate,
+          latestInflatedValue: latest?.value ?? null,
+          latestInflationRate: latest?.inflationRate ?? null,
         };
       })
     );
 
     res.json(adjustedAssets);
+
   } catch (err) {
     console.error("❌ Error fetching assets:", err);
-    res.status(500).json({ error: err.message || "Failed to load assets" });
+    res.status(500).json({ error: "Failed to load assets" });
   }
 });
 
 /* ==========================================================
-   🔹 CREATE new asset
+   🔹 CREATE asset
 ========================================================== */
 router.post("/", async (req, res) => {
   try {
-    if (req.body._id) delete req.body._id;
-    if (req.body.assetCode) delete req.body.assetCode;
-
-    console.log("🆕 Creating new asset:", req.body);
+    delete req.body._id;
+    delete req.body.assetCode;
 
     const newAsset = new Asset(req.body);
     await newAsset.save();
 
-    console.log("✅ Asset created:", newAsset.assetCode);
     res.json({ message: "Asset created successfully", asset: newAsset });
   } catch (err) {
-    console.error("❌ Error creating asset:", err);
-    res.status(500).json({ error: err.message || "Failed to create asset" });
+    res.status(500).json({ error: "Failed to create asset" });
   }
 });
 
@@ -104,25 +155,63 @@ router.post("/", async (req, res) => {
 ========================================================== */
 router.put("/:id", async (req, res) => {
   try {
-    console.log("✏️ Updating asset:", req.params.id);
-
-    if (req.body.assetCode) delete req.body.assetCode;
-    if (req.body._id) delete req.body._id;
+    delete req.body._id;
+    delete req.body.assetCode;
 
     const updated = await Asset.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
-      runValidators: true,
     });
 
-    if (!updated) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
+    if (!updated) return res.status(404).json({ error: "Asset not found" });
 
-    console.log("✅ Asset updated:", updated.assetCode);
-    res.json({ message: "Asset updated successfully", asset: updated });
+    res.json({ message: "Asset updated", asset: updated });
   } catch (err) {
-    console.error("❌ Error updating asset:", err);
-    res.status(500).json({ error: err.message || "Failed to update asset" });
+    res.status(500).json({ error: "Failed to update asset" });
+  }
+});
+
+/* ==========================================================
+   🔹 UPDATE value history inflation rate for a specific year
+========================================================== */
+router.put("/:id/history", async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { year, inflationRate } = req.body;
+
+    year = Number(year);
+    inflationRate = Number(inflationRate);
+
+    const asset = await Asset.findById(id);
+    if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+    const baseCost = asset.purchaseCost || 0;
+    let history = sortHistory(asset.valueHistory || []);
+
+    const idx = history.findIndex((h) => h.year === year);
+    if (idx === -1) return res.status(404).json({ error: "Year not found" });
+
+    // Update inflation
+    history[idx].inflationRate = inflationRate;
+
+    // Recompute this + all later years
+    history = recomputeHistoryValues(history, idx, baseCost);
+
+    asset.valueHistory = history;
+    await asset.save();
+
+    const latest = history[history.length - 1];
+
+    res.json({
+      message: "History updated",
+      asset: {
+        ...asset.toObject(),
+        latestInflatedValue: latest.value,
+        latestInflationRate: latest.inflationRate,
+      },
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update history" });
   }
 });
 
@@ -131,18 +220,12 @@ router.put("/:id", async (req, res) => {
 ========================================================== */
 router.delete("/:id", async (req, res) => {
   try {
-    console.log("🗑️ Deleting asset:", req.params.id);
     const deleted = await Asset.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Asset not found" });
 
-    if (!deleted) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
-
-    console.log("✅ Asset deleted:", deleted.assetCode);
-    res.json({ message: "Asset deleted successfully" });
+    res.json({ message: "Asset deleted" });
   } catch (err) {
-    console.error("❌ Error deleting asset:", err);
-    res.status(500).json({ error: err.message || "Failed to delete asset" });
+    res.status(500).json({ error: "Failed to delete asset" });
   }
 });
 

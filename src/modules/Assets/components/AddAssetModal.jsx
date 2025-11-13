@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 
-export default function AddAssetModal({ show, onClose, onSave, existingAsset, areaId }) {
+export default function AddAssetModal({
+  show,
+  onClose,
+  onSave,
+  existingAsset,
+  areaId,
+}) {
   const blankState = {
     assetCode: "",
     name: "",
@@ -9,7 +15,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
     serial: "",
     status: "Active",
     installDate: "",
-    installationCost: "", // 🆕 Added
+    installationCost: "",
     purchaseDate: "",
     supplier: "",
     purchaseCost: "",
@@ -28,6 +34,20 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   /* ==========================================================
+     🔹 Fix: Convert "2020" → "2020-01-01"
+  =========================================================== */
+  const fixPurchaseDate = (value) => {
+    if (!value) return value;
+
+    // If user enters only a 4-digit year
+    if (/^\d{4}$/.test(value)) {
+      return `${value}-01-01`;
+    }
+
+    return value;
+  };
+
+  /* ==========================================================
      🔹 When modal opens — load existing or reset new
   =========================================================== */
   useEffect(() => {
@@ -43,11 +63,16 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   }, [show, existingAsset]);
 
   /* ==========================================================
-     🔹 Handle field changes
+     🔹 Handle field changes (with purchaseDate fixer)
   =========================================================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "purchaseDate") {
+      setForm((prev) => ({ ...prev, purchaseDate: fixPurchaseDate(value) }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   /* ==========================================================
@@ -55,6 +80,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
   =========================================================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!form.name.trim()) {
       alert("Please enter Asset Name.");
       return;
@@ -63,7 +89,12 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
     setSaving(true);
     try {
       const { _id, ...cleanForm } = form;
-      const payload = { ...cleanForm, assetCode: autoCode, areaId };
+
+      const payload = {
+        ...cleanForm,
+        assetCode: autoCode,
+        areaId,
+      };
 
       const url = existingAsset
         ? `${API_BASE}/api/assets/${existingAsset._id}`
@@ -76,14 +107,13 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
       });
 
       if (!res.ok) throw new Error("Failed to save asset");
-      const data = await res.json();
-      console.log("✅ Asset saved:", data);
 
+      const data = await res.json();
       if (onSave) onSave(data.asset || data);
       onClose();
     } catch (err) {
       console.error("❌ Error saving asset:", err);
-      alert("Failed to save asset. Please check your connection.");
+      alert("Failed to save asset.");
     } finally {
       setSaving(false);
     }
@@ -177,7 +207,6 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                 />
               </div>
 
-              {/* 🆕 Installation Cost */}
               <div className="col-md-4">
                 <label className="form-label small">Installation Cost (£)</label>
                 <input
@@ -197,13 +226,15 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
               <div className="col-md-4">
                 <label className="form-label small">Purchase Date</label>
                 <input
-                  type="date"
+                  type="text"
+                  placeholder="yyyy-mm-dd or yyyy"
                   className="form-control"
                   name="purchaseDate"
                   value={form.purchaseDate}
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Supplier</label>
                 <input
@@ -214,6 +245,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Purchase Cost (£)</label>
                 <input
@@ -237,6 +269,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Expected Useful Life (years)</label>
                 <input
@@ -247,10 +280,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
-                <label className="form-label small">
-                  Annual Maintenance Costs (approx.) (£)
-                </label>
+                <label className="form-label small">Annual Maintenance Costs (£)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -271,6 +303,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Disposal / Write-Off Date</label>
                 <input
@@ -281,6 +314,7 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-md-4">
                 <label className="form-label small">Disposal Value (£)</label>
                 <input
@@ -292,8 +326,9 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
                   onChange={handleChange}
                 />
               </div>
+
               <div className="col-12">
-                <label className="form-label small">Disposal / Write-Off Reason</label>
+                <label className="form-label small">Disposal Reason</label>
                 <textarea
                   className="form-control"
                   rows="2"
@@ -304,21 +339,12 @@ export default function AddAssetModal({ show, onClose, onSave, existingAsset, ar
               </div>
             </div>
 
-            {/* ===== Footer ===== */}
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-                disabled={saving}
-              >
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`}
-                disabled={saving}
-              >
+
+              <button type="submit" className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`} disabled={saving}>
                 {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
               </button>
             </div>
