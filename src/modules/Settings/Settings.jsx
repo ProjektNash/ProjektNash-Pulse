@@ -4,17 +4,16 @@ export default function Settings() {
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   const [inflationTable, setInflationTable] = useState([]);
-  const [defaultRate, setDefaultRate] = useState(0);
+  const [defaultRate, setDefaultRate] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  // New row fields
   const [newYear, setNewYear] = useState("");
   const [newRate, setNewRate] = useState("");
 
   /* ----------------------------------------------------------
-     Load Settings + Inflation Table
+     Load Settings
   ---------------------------------------------------------- */
   useEffect(() => {
     loadSettings();
@@ -27,7 +26,7 @@ export default function Settings() {
       const data = await res.json();
 
       setInflationTable(data.inflationTable || []);
-      setDefaultRate(data.defaultInflationRate || 0);
+      setDefaultRate(String(data.defaultInflationRate || ""));
     } catch (err) {
       console.error("❌ Failed to load settings:", err);
     } finally {
@@ -36,11 +35,11 @@ export default function Settings() {
   };
 
   /* ----------------------------------------------------------
-     Update a row in the inflation table
+     Update a table row
   ---------------------------------------------------------- */
-  const handleTableChange = (index, field, value) => {
+  const handleTableChange = (index, field, val) => {
     const updated = [...inflationTable];
-    updated[index][field] = value;
+    updated[index][field] = val;
     setInflationTable(updated);
   };
 
@@ -48,7 +47,7 @@ export default function Settings() {
      Add a new inflation year
   ---------------------------------------------------------- */
   const handleAddYear = () => {
-    if (!newYear || !newRate) return alert("Enter both year and rate.");
+    if (!newYear || newRate === "") return alert("Enter both year and rate.");
 
     if (inflationTable.some((row) => row.year === Number(newYear))) {
       return alert("That year already exists.");
@@ -64,8 +63,7 @@ export default function Settings() {
   };
 
   /* ----------------------------------------------------------
-     Save settings + Recalculate ALL assets on backend
-     (NO MORE PAGE RELOAD — FIXES 404)
+     Save settings + Recalculate ALL assets
   ---------------------------------------------------------- */
   const handleSave = async () => {
     try {
@@ -76,7 +74,10 @@ export default function Settings() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          inflationTable,
+          inflationTable: inflationTable.map((r) => ({
+            year: Number(r.year),
+            rate: Number(r.rate),
+          })),
           defaultInflationRate: Number(defaultRate),
         }),
       });
@@ -85,12 +86,10 @@ export default function Settings() {
 
       setMessage("Settings saved — recalculating all assets…");
 
-      // Wait for backend to finish → Reload settings table only
       setTimeout(() => {
         loadSettings();
         setSaving(false);
       }, 1000);
-
     } catch (err) {
       console.error("❌ Error saving settings:", err);
       alert("Failed to save settings.");
@@ -98,9 +97,20 @@ export default function Settings() {
     }
   };
 
-  if (loading) {
-    return <p className="p-4">Loading settings...</p>;
-  }
+  if (loading) return <p className="p-4">Loading settings...</p>;
+
+  /* ----------------------------------------------------------
+     Input sanitiser for negative numbers
+  ---------------------------------------------------------- */
+  const handleNumberInput = (raw, setter) => {
+    if (raw === "" || raw === "-") {
+      setter(raw);
+      return;
+    }
+    if (!isNaN(Number(raw))) {
+      setter(raw);
+    }
+  };
 
   return (
     <div className="container mt-4">
@@ -109,7 +119,6 @@ export default function Settings() {
         Configure inflation rates used to escalate asset values.
       </p>
 
-      {/* Global status messages */}
       {saving && (
         <div className="alert alert-info py-2">
           Recalculating all asset values, please wait…
@@ -124,18 +133,19 @@ export default function Settings() {
       <div className="card p-3 mb-4">
         <h5>Default Inflation Rate</h5>
         <p className="text-muted small">
-          Used for years not defined in the table.
+          Used for any year not listed below.
         </p>
 
         <div className="row g-2">
           <div className="col-md-4">
             <label className="form-label small">Default Rate (%)</label>
             <input
-              type="number"
-              step="0.1"
+              type="text"
               className="form-control"
               value={defaultRate}
-              onChange={(e) => setDefaultRate(e.target.value)}
+              onChange={(e) =>
+                handleNumberInput(e.target.value, setDefaultRate)
+              }
               disabled={saving}
             />
           </div>
@@ -168,19 +178,22 @@ export default function Settings() {
                       className="form-control"
                       value={row.year}
                       onChange={(e) =>
-                        handleTableChange(index, "year", Number(e.target.value))
+                        handleTableChange(
+                          index,
+                          "year",
+                          Number(e.target.value)
+                        )
                       }
                       disabled={saving}
                     />
                   </td>
                   <td>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       className="form-control"
                       value={row.rate}
                       onChange={(e) =>
-                        handleTableChange(index, "rate", Number(e.target.value))
+                        handleTableChange(index, "rate", e.target.value)
                       }
                       disabled={saving}
                     />
@@ -205,17 +218,20 @@ export default function Settings() {
                 disabled={saving}
               />
             </div>
+
             <div className="col-md-3">
               <input
-                type="number"
-                step="0.1"
+                type="text"
                 placeholder="Rate %"
                 className="form-control"
                 value={newRate}
-                onChange={(e) => setNewRate(e.target.value)}
+                onChange={(e) =>
+                  handleNumberInput(e.target.value, setNewRate)
+                }
                 disabled={saving}
               />
             </div>
+
             <div className="col-md-3">
               <button
                 className="btn btn-success w-100"
@@ -228,7 +244,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Save Settings */}
         <button
           className="btn btn-primary mt-3"
           onClick={handleSave}
