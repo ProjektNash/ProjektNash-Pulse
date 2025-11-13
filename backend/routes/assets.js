@@ -1,5 +1,6 @@
 import express from "express";
 import Asset from "../models/Asset.js";
+import Settings from "../models/Setting.js";   // ⭐ ADDED
 
 const router = express.Router();
 
@@ -14,7 +15,36 @@ router.get("/", async (req, res) => {
 
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
     console.log(`✅ Found ${assets.length} assets`);
-    res.json(assets);
+
+    // ⭐ ADDED — Fetch inflation % from Settings
+    const settings = await Settings.findOne();
+    const inflationRate = settings?.inflationRate || 0;
+
+    const currentYear = new Date().getFullYear();
+
+    // ⭐ ADDED — Apply inflation to each asset
+    const adjustedAssets = assets.map(asset => {
+      const baseValue = asset.replacementValue || 0;
+
+      const purchaseYear = asset.purchaseDate
+        ? new Date(asset.purchaseDate).getFullYear()
+        : currentYear;
+
+      const yearsSince = currentYear - purchaseYear;
+
+      const adjustedValue = baseValue
+        ? baseValue * Math.pow(1 + inflationRate / 100, yearsSince)
+        : null;
+
+      return {
+        ...asset.toObject(),
+        adjustedReplacementValue: adjustedValue ? adjustedValue.toFixed(2) : null
+      };
+    });
+
+    // ⭐ UPDATED — return adjusted assets instead of plain assets
+    res.json(adjustedAssets);
+
   } catch (err) {
     console.error("❌ Error fetching assets:", err);
     res.status(500).json({ error: err.message || "Failed to load assets" });

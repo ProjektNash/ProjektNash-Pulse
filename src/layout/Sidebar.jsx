@@ -9,11 +9,10 @@ export default function Sidebar() {
   const showDashboard = true;
   const showSafety = false;
   const showAssets = true;
-  const showBusinessPartners = true; // 👈 New module toggle
-
-  const showMaintenance = true; // 👈 External / Engineer jobs
-  const showPreventiveMaintenance = false; // 👈 In-House / Preventive tasks
-  const showMaintenanceCalendar = true; // 👈 Calendar dashboard
+  const showBusinessPartners = true; 
+  const showMaintenance = true; 
+  const showPreventiveMaintenance = false; 
+  const showMaintenanceCalendar = true;
 
   const menuItems = [
     showDashboard && { name: "Dashboard", path: "/" },
@@ -32,7 +31,7 @@ export default function Sidebar() {
       name: "Maintenance-Calendar",
       path: "/maintenance-calendar",
     },
-  ].filter(Boolean); // removes false items
+  ].filter(Boolean);
 
   return (
     <div
@@ -54,6 +53,18 @@ export default function Sidebar() {
             </Link>
           </li>
         ))}
+
+        {/* ⭐ NEW SETTINGS BUTTON */}
+        <li className="nav-item mt-3">
+          <Link
+            to="/settings"
+            className={`nav-link text-white ${
+              location.pathname === "/settings" ? "active bg-info" : ""
+            }`}
+          >
+            Settings
+          </Link>
+        </li>
       </ul>
 
       <div className="text-center small text-secondary mt-auto">

@@ -26,15 +26,23 @@ export default function AssetList({ assets, onDelete, onEdit }) {
               <th style={{ width: "15%" }}>Supplier</th>
               <th style={{ width: "10%" }}>Purchase Cost (£)</th>
               <th style={{ width: "10%" }}>Warranty Expiry</th>
-              <th className="text-center" style={{ width: "10%" }}>Actions</th>
+
+              {/* ⭐ NEW COLUMN added */}
+              <th style={{ width: "15%" }}>Inflated Replacement Value (£)</th>
+
+              <th className="text-center" style={{ width: "10%" }}>
+                Actions
+              </th>
             </tr>
           </thead>
+
           <tbody>
             {assets.map((a) => (
               <tr key={a.id || a._id}>
                 <td className="fw-semibold">{a.assetCode || "-"}</td>
                 <td>{a.name || "-"}</td>
                 <td>{a.category || "-"}</td>
+
                 <td>
                   <span
                     className={`badge ${
@@ -48,13 +56,24 @@ export default function AssetList({ assets, onDelete, onEdit }) {
                     {a.status || "Active"}
                   </span>
                 </td>
+
                 <td>{a.supplier || "-"}</td>
+
                 <td>
                   {a.purchaseCost
                     ? `£${Number(a.purchaseCost).toFixed(2)}`
                     : "-"}
                 </td>
+
                 <td>{a.warrantyExpiry || "-"}</td>
+
+                {/* ⭐ NEW CELL — Inflation-adjusted value */}
+                <td>
+                  {a.adjustedReplacementValue
+                    ? `£${Number(a.adjustedReplacementValue).toLocaleString()}`
+                    : "-"}
+                </td>
+
                 <td className="text-center">
                   <button
                     className="btn btn-outline-primary btn-sm me-2"
@@ -62,6 +81,7 @@ export default function AssetList({ assets, onDelete, onEdit }) {
                   >
                     Edit
                   </button>
+
                   <button
                     className="btn btn-outline-danger btn-sm"
                     onClick={() => onDelete(a.id || a._id)}
@@ -81,7 +101,7 @@ export default function AssetList({ assets, onDelete, onEdit }) {
           show={true}
           onClose={() => setEditingAsset(null)}
           onSave={handleEditSave}
-          existingAsset={editingAsset} // prefill for editing
+          existingAsset={editingAsset}
         />
       )}
     </>

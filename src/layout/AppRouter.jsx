@@ -13,6 +13,9 @@ import MaintenanceCalendar from "../modules/Maintenance-Calendar/MaintenanceCale
 // --- Business Partners Module ---
 import BusinessPartners from "../modules/BusinessPartners/BusinessPartners";
 
+// --- Settings Module ⭐ NEW ---
+import Settings from "../modules/Settings/Settings.jsx";
+
 // --- Temporary placeholder pages ---
 function Dashboard() {
   return (
@@ -80,7 +83,7 @@ export default function AppRouter() {
                 {/* Business Partners */}
                 <Route path="/business-partners" element={<BusinessPartners />} />
 
-                {/* Maintenance sections */}
+                {/* Maintenance */}
                 <Route path="/maintenance" element={<Maintenance />} />
                 <Route
                   path="/preventive-maintenance"
@@ -90,6 +93,9 @@ export default function AppRouter() {
                   path="/maintenance-calendar"
                   element={<MaintenanceCalendar />}
                 />
+
+                {/* ⭐ NEW SETTINGS PAGE */}
+                <Route path="/settings" element={<Settings />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
@@ -101,3 +107,4 @@ export default function AppRouter() {
     </Router>
   );
 }
+

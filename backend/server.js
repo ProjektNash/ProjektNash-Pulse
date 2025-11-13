@@ -6,8 +6,9 @@ import cors from "cors";
 // --- Import Routes ---
 import areaRoutes from "./routes/areas.js";
 import assetRoutes from "./routes/assets.js";
-import partnerRoutes from "./routes/partners.js";     // ✅ Business Partners
-import maintenanceRoutes from "./routes/maintenance.js"; // ✅ Maintenance Jobs
+import partnerRoutes from "./routes/partners.js";     
+import maintenanceRoutes from "./routes/maintenance.js";
+import settingsRoutes from "./routes/settings.js";   // ⭐ ADDED — Settings route
 
 dotenv.config();
 const app = express();
@@ -16,8 +17,8 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "https://projektnash.github.io", // ✅ Live frontend
-      "http://localhost:5173",         // ✅ Local dev frontend
+      "https://projektnash.github.io", // Live frontend
+      "http://localhost:5173",         // Local dev frontend
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
@@ -37,9 +38,10 @@ mongoose
 app.use("/api/areas", areaRoutes);
 app.use("/api/assets", assetRoutes);
 app.use("/api/partners", partnerRoutes);
-app.use("/api/maintenance", maintenanceRoutes); // ✅ New Maintenance Jobs route
+app.use("/api/maintenance", maintenanceRoutes);
+app.use("/api/settings", settingsRoutes);  // ⭐ ADDED — Global Settings API
 
-// ✅ Health check route (for debugging)
+// ✅ Health check route
 app.get("/", (req, res) => {
   res.send("🚀 ProjektNash-Pulse Backend API is running...");
 });
