@@ -5,23 +5,46 @@ import Settings from "../models/Setting.js";
 const router = express.Router();
 
 /* ==========================================================
-   🔹 Helper: sort history by year
+   Helpers for Settings + Inflation
 ========================================================== */
+
+const DEFAULT_INFLATION_TABLE = [
+  { year: 2015, rate: 0.0 },
+  { year: 2016, rate: 1.0 },
+  { year: 2017, rate: 2.7 },
+  { year: 2018, rate: 2.5 },
+  { year: 2019, rate: 1.8 },
+  { year: 2020, rate: 1.4 },
+  { year: 2021, rate: 2.0 },
+  { year: 2022, rate: 9.1 },
+  { year: 2023, rate: 6.8 },
+  { year: 2024, rate: 3.0 },
+  { year: 2025, rate: 2.5 },
+];
+
+async function getOrCreateSettings() {
+  let settings = await Settings.findOne();
+  if (!settings) {
+    settings = new Settings({
+      inflationRate: 2,
+      defaultInflationRate: 2,
+      inflationTable: DEFAULT_INFLATION_TABLE,
+    });
+    await settings.save();
+  }
+  return settings;
+}
+
 function sortHistory(history = []) {
   return [...history].sort((a, b) => a.year - b.year);
 }
 
-/* ==========================================================
-   🔹 Helper: recompute values from a given index onward
-   - Uses purchaseCost as the base for year 0
-========================================================== */
 function recomputeHistoryValues(history, startIndex, baseCost) {
   const sorted = sortHistory(history);
 
   for (let i = startIndex; i < sorted.length; i++) {
     const prevValue = i === 0 ? (baseCost || 0) : sorted[i - 1].value || 0;
     const rate = sorted[i].inflationRate || 0;
-
     const newValue = prevValue * (1 + rate / 100);
     sorted[i].value = Number(newValue.toFixed(2));
   }
@@ -29,8 +52,32 @@ function recomputeHistoryValues(history, startIndex, baseCost) {
   return sorted;
 }
 
+/* Get default rate for a given year from Settings */
+function getRateForYear(year, settings) {
+  const table = settings?.inflationTable || [];
+  const found = table.find((r) => r.year === year);
+  if (found && typeof found.rate === "number") return found.rate;
+
+  // fallback to defaultInflationRate or legacy inflationRate
+  if (
+    settings &&
+    typeof settings.defaultInflationRate === "number" &&
+    !Number.isNaN(settings.defaultInflationRate)
+  ) {
+    return settings.defaultInflationRate;
+  }
+  if (
+    settings &&
+    typeof settings.inflationRate === "number" &&
+    !Number.isNaN(settings.inflationRate)
+  ) {
+    return settings.inflationRate;
+  }
+  return 0;
+}
+
 /* ==========================================================
-   🔹 GET all assets (backfill OR rebuild valueHistory)
+   🔹 GET all assets (build valueHistory using per-year rates)
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -38,43 +85,33 @@ router.get("/", async (req, res) => {
     const filter = areaId ? { areaId } : {};
 
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
-
-    const settings = await Settings.findOne();
-    const defaultInflationRate = settings?.inflationRate || 0;
-
+    const settings = await getOrCreateSettings();
     const currentYear = new Date().getFullYear();
 
     const adjustedAssets = await Promise.all(
       assets.map(async (asset) => {
         const baseCost = asset.purchaseCost || 0;
 
-        /* ---------- PARSE purchaseDate safely ---------- */
+        // ---- Purchase year detection ----
         let baseYear = currentYear;
-
         if (asset.purchaseDate) {
           let py;
-
-          // If stored as just a year string: "2020"
           if (/^\d{4}$/.test(asset.purchaseDate)) {
             py = new Date(`${asset.purchaseDate}-01-01`);
           } else {
             py = new Date(asset.purchaseDate);
           }
-
-          if (!isNaN(py)) {
+          if (!Number.isNaN(py)) {
             baseYear = py.getFullYear();
           }
         } else if (asset.createdAt) {
           baseYear = new Date(asset.createdAt).getFullYear();
         }
-
         if (baseYear > currentYear) baseYear = currentYear;
 
-        /* ---------- History rebuild logic ---------- */
         let history = sortHistory(asset.valueHistory || []);
 
         const expectedYears = currentYear - baseYear + 1;
-
         const historyStart = history.length ? history[0].year : null;
         const historyEnd = history.length
           ? history[history.length - 1].year
@@ -87,27 +124,26 @@ router.get("/", async (req, res) => {
           historyEnd !== currentYear;
 
         if (historyIsIncomplete) {
-          console.log(`🔧 Rebuilding full history for ${asset.assetCode}`);
-
+          // 🔧 Rebuild full history using per-year rates
           const newHistory = [];
           let year = baseYear;
           let lastValue = baseCost;
 
-          // First entry: base year with 0% inflation
+          // base year: 0% inflation
           newHistory.push({
             year,
             inflationRate: 0,
             value: Number(lastValue.toFixed(2)),
           });
 
-          // Future years: use current defaultInflationRate
           while (year < currentYear) {
             year++;
-            lastValue = lastValue * (1 + defaultInflationRate / 100);
+            const rateForYear = getRateForYear(year, settings);
+            lastValue = lastValue * (1 + rateForYear / 100);
 
             newHistory.push({
               year,
-              inflationRate: defaultInflationRate,
+              inflationRate: rateForYear,
               value: Number(lastValue.toFixed(2)),
             });
           }
@@ -135,7 +171,7 @@ router.get("/", async (req, res) => {
 });
 
 /* ==========================================================
-   🔹 CREATE asset
+   CREATE asset
 ========================================================== */
 router.post("/", async (req, res) => {
   try {
@@ -153,7 +189,7 @@ router.post("/", async (req, res) => {
 });
 
 /* ==========================================================
-   🔹 UPDATE asset
+   UPDATE asset
 ========================================================== */
 router.put("/:id", async (req, res) => {
   try {
@@ -176,9 +212,7 @@ router.put("/:id", async (req, res) => {
 });
 
 /* ==========================================================
-   🔹 UPDATE value history inflation rate for a specific year
-   - Full manual control of inflationRate
-   - Recomputes that year and all future years
+   UPDATE value history for specific year (manual override)
 ========================================================== */
 router.put("/:id/history", async (req, res) => {
   try {
@@ -188,10 +222,10 @@ router.put("/:id/history", async (req, res) => {
     year = Number(year);
     inflationRate = Number(inflationRate);
 
-    if (!year || isNaN(year)) {
+    if (!year || Number.isNaN(year)) {
       return res.status(400).json({ error: "Valid 'year' is required" });
     }
-    if (isNaN(inflationRate)) {
+    if (Number.isNaN(inflationRate)) {
       return res
         .status(400)
         .json({ error: "Valid 'inflationRate' is required" });
@@ -216,10 +250,8 @@ router.put("/:id/history", async (req, res) => {
       return res.status(404).json({ error: `Year ${year} not found` });
     }
 
-    // Update inflation rate for this year
+    // Manual override
     history[idx].inflationRate = inflationRate;
-
-    // Recompute this year + all later years
     history = recomputeHistoryValues(history, idx, baseCost);
 
     asset.valueHistory = history;
@@ -242,7 +274,7 @@ router.put("/:id/history", async (req, res) => {
 });
 
 /* ==========================================================
-   🔹 DELETE asset
+   DELETE asset
 ========================================================== */
 router.delete("/:id", async (req, res) => {
   try {
