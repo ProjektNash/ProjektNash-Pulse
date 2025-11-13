@@ -1,6 +1,6 @@
 import express from "express";
 import Asset from "../models/Asset.js";
-import Settings from "../models/Setting.js";   // ⭐ ADDED
+import Settings from "../models/Setting.js";
 
 const router = express.Router();
 
@@ -16,35 +16,37 @@ router.get("/", async (req, res) => {
     const assets = await Asset.find(filter).sort({ createdAt: -1 });
     console.log(`✅ Found ${assets.length} assets`);
 
-    // ⭐ ADDED — Fetch inflation % from Settings
+    // ⭐ Fetch inflation % from Settings
     const settings = await Settings.findOne();
     const inflationRate = settings?.inflationRate || 0;
 
     const currentYear = new Date().getFullYear();
 
-    // ⭐ ADDED — Apply inflation to each asset
-    const adjustedAssets = assets.map(asset => {
-      const baseValue = asset.replacementValue || 0;
+    // ⭐ Apply inflation to each asset
+    const adjustedAssets = assets.map((asset) => {
+      const baseValue = asset.purchaseCost || 0;  // ⭐ FIXED: correct field
 
       const purchaseYear = asset.purchaseDate
         ? new Date(asset.purchaseDate).getFullYear()
-        : currentYear;
+        : currentYear; // No purchase date → assume current year (0 years inflation)
 
       const yearsSince = currentYear - purchaseYear;
 
-      const adjustedValue = baseValue
-        ? baseValue * Math.pow(1 + inflationRate / 100, yearsSince)
-        : null;
+      const adjustedValue =
+        baseValue > 0
+          ? baseValue * Math.pow(1 + inflationRate / 100, yearsSince)
+          : null;
 
       return {
         ...asset.toObject(),
-        adjustedReplacementValue: adjustedValue ? adjustedValue.toFixed(2) : null
+        adjustedReplacementValue: adjustedValue
+          ? adjustedValue.toFixed(2)
+          : null,
       };
     });
 
-    // ⭐ UPDATED — return adjusted assets instead of plain assets
+    // ⭐ Return updated asset objects
     res.json(adjustedAssets);
-
   } catch (err) {
     console.error("❌ Error fetching assets:", err);
     res.status(500).json({ error: err.message || "Failed to load assets" });
@@ -53,13 +55,9 @@ router.get("/", async (req, res) => {
 
 /* ==========================================================
    🔹 CREATE new asset
-   ----------------------------------------------------------
-   - Backend now auto-generates assetCode (AST-####)
-   - Ensures no duplicate _id or assetCode from frontend
 ========================================================== */
 router.post("/", async (req, res) => {
   try {
-    // 🔒 Clean incoming data
     if (req.body._id) delete req.body._id;
     if (req.body.assetCode) delete req.body.assetCode;
 
@@ -83,7 +81,6 @@ router.put("/:id", async (req, res) => {
   try {
     console.log("✏️ Updating asset:", req.params.id);
 
-    // Prevent changing assetCode manually
     if (req.body.assetCode) delete req.body.assetCode;
     if (req.body._id) delete req.body._id;
 
