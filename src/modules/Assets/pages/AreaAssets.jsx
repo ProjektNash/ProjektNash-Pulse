@@ -9,9 +9,6 @@ export default function AreaAssets({ area, goBack }) {
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
-  /* ==========================================================
-     🔹 Load all assets for this area
-  =========================================================== */
   const loadAssets = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/assets?areaId=${area._id}`);
@@ -23,41 +20,19 @@ export default function AreaAssets({ area, goBack }) {
     }
   };
 
-  /* ==========================================================
-     🔹 When the page loads or area changes
-  =========================================================== */
   useEffect(() => {
     loadAssets();
   }, [area]);
 
-  /* ==========================================================
-     🔹 Edit existing asset (PUT)
-  =========================================================== */
-  const handleEditAsset = async (updatedAsset) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/assets/${updatedAsset._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedAsset),
-      });
-      if (!res.ok) throw new Error("Failed to update asset");
-      await loadAssets(); // refresh after edit
-    } catch (err) {
-      console.error("❌ Error updating asset:", err);
-      alert("Error updating asset.");
-    }
-  };
-
-  /* ==========================================================
-     🔹 Delete asset (DELETE)
-  =========================================================== */
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this asset?")) return;
+
     try {
       const res = await fetch(`${API_BASE}/api/assets/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete asset");
+
       await loadAssets();
     } catch (err) {
       console.error("❌ Error deleting asset:", err);
@@ -65,12 +40,9 @@ export default function AreaAssets({ area, goBack }) {
     }
   };
 
-  /* ==========================================================
-     🔹 Render
-  =========================================================== */
   return (
     <div className="container py-4">
-      {/* Header */}
+
       <div className="d-flex justify-content-between align-items-center mb-4">
         <button className="btn btn-primary" onClick={goBack}>
           ← Back to Areas
@@ -89,7 +61,6 @@ export default function AreaAssets({ area, goBack }) {
         </button>
       </div>
 
-      {/* Assets Table */}
       <AssetList
         assets={assets}
         onDelete={handleDelete}
@@ -97,13 +68,13 @@ export default function AreaAssets({ area, goBack }) {
           setEditingAsset(asset);
           setShowModal(true);
         }}
+        onRefresh={loadAssets}   // ⭐ Auto-refresh from history modal
       />
 
-      {/* Add/Edit Asset Modal */}
       <AddAssetModal
         show={showModal}
         onClose={() => setShowModal(false)}
-        onSave={loadAssets} // ✅ only reload list after modal save
+        onSave={loadAssets}
         existingAsset={editingAsset}
         areaId={area._id}
       />

@@ -8,11 +8,12 @@ export default function Areas() {
   const [selectedArea, setSelectedArea] = useState(null);
   const [assetCounts, setAssetCounts] = useState({});
   const [areaValues, setAreaValues] = useState({});
+  const [inflatedValues, setInflatedValues] = useState({}); // ⭐ NEW
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   /* ==========================================================
-     🔹 Load all areas + asset counts + total values
+     🔹 Load all areas + asset counts + original + inflated values
   =========================================================== */
   const loadAreas = async () => {
     try {
@@ -23,33 +24,50 @@ export default function Areas() {
 
       const counts = {};
       const values = {};
+      const inflatedTotals = {}; // ⭐ NEW
 
       await Promise.all(
         data.map(async (area) => {
           try {
             const assetRes = await fetch(`${API_BASE}/api/assets?areaId=${area._id}`);
+
             if (assetRes.ok) {
               const assetData = await assetRes.json();
+
+              // Count assets
               counts[area._id] = assetData.length;
 
+              // Total purchase value
               const totalValue = assetData.reduce((sum, asset) => {
                 const cost = parseFloat(asset.purchaseCost) || 0;
                 return sum + cost;
               }, 0);
               values[area._id] = totalValue;
+
+              // ⭐ Total inflated value
+              const inflated = assetData.reduce((sum, asset) => {
+                const iv = parseFloat(asset.latestInflatedValue) || 0;
+                return sum + iv;
+              }, 0);
+              inflatedTotals[area._id] = inflated;
+
             } else {
               counts[area._id] = 0;
               values[area._id] = 0;
+              inflatedTotals[area._id] = 0;
             }
           } catch {
             counts[area._id] = 0;
             values[area._id] = 0;
+            inflatedTotals[area._id] = 0;
           }
         })
       );
 
       setAssetCounts(counts);
       setAreaValues(values);
+      setInflatedValues(inflatedTotals); // ⭐ SET NEW STATE
+
     } catch (err) {
       console.error("❌ Error loading areas:", err);
     }
@@ -76,25 +94,22 @@ export default function Areas() {
   };
 
   /* ==========================================================
-     🔹 Conditional Render
-     - If area selected → show its assets
-     - Else → show area list
+     🔹 Handle area selection
   =========================================================== */
- if (selectedArea) {
-  return (
-    <AreaAssets
-      area={selectedArea}
-      goBack={() => {
-        setSelectedArea(null);
-        loadAreas(); // ✅ refresh areas after returning
-      }}
-    />
-  );
-}
-
+  if (selectedArea) {
+    return (
+      <AreaAssets
+        area={selectedArea}
+        goBack={() => {
+          setSelectedArea(null);
+          loadAreas(); // refresh list after returning
+        }}
+      />
+    );
+  }
 
   /* ==========================================================
-     🔹 Default: Show Areas Table
+     🔹 Areas Table
   =========================================================== */
   return (
     <div className="container py-4">
@@ -112,16 +127,11 @@ export default function Areas() {
           <table className="table table-bordered align-middle shadow-sm">
             <thead className="table-light">
               <tr>
-                <th style={{ width: "40%" }}>Area Name</th>
-                <th style={{ width: "15%" }} className="text-center">
-                  Assets
-                </th>
-                <th style={{ width: "15%" }} className="text-center">
-                  Value (£)
-                </th>
-                <th style={{ width: "30%" }} className="text-center">
-                  Actions
-                </th>
+                <th style={{ width: "35%" }}>Area Name</th>
+                <th style={{ width: "10%" }} className="text-center">Assets</th>
+                <th style={{ width: "15%" }} className="text-center">Value (£)</th>
+                <th style={{ width: "15%" }} className="text-center">Inflated Value (£)</th> {/* ⭐ NEW */}
+                <th style={{ width: "25%" }} className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -133,15 +143,25 @@ export default function Areas() {
                   >
                     {area.name || "Unnamed Area"}
                   </td>
+
                   <td className="text-center">{assetCounts[area._id] ?? "-"}</td>
+
+                  {/* Purchase Value */}
                   <td className="text-center text-success fw-semibold">
                     £
-                    {areaValues[area._id]
-                      ? areaValues[area._id].toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })
-                      : "0.00"}
+                    {(areaValues[area._id] || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                    })}
                   </td>
+
+                  {/* ⭐ Inflated Value Column */}
+                  <td className="text-center text-primary fw-semibold">
+                    £
+                    {(inflatedValues[area._id] || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                    })}
+                  </td>
+
                   <td className="text-center">
                     <button
                       className="btn btn-sm btn-danger"
@@ -150,6 +170,7 @@ export default function Areas() {
                       Delete
                     </button>
                   </td>
+
                 </tr>
               ))}
             </tbody>

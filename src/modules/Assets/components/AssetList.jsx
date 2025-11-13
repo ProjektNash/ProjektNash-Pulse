@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import AddAssetModal from "./AddAssetModal";
 import AssetHistoryModal from "./AssetHistoryModal";
 
-export default function AssetList({ assets, onDelete, onEdit }) {
+export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
   const [editingAsset, setEditingAsset] = useState(null);
-  const [historyAsset, setHistoryAsset] = useState(null); // ⭐ NEW
+  const [historyAsset, setHistoryAsset] = useState(null);
 
   const handleEditSave = (updatedAsset) => {
     onEdit(updatedAsset);
@@ -21,27 +21,24 @@ export default function AssetList({ assets, onDelete, onEdit }) {
         <table className="table table-striped table-hover align-middle shadow-sm">
           <thead className="table-light">
             <tr>
-              <th style={{ width: "10%" }}>Asset ID</th>
-              <th style={{ width: "20%" }}>Name / Description</th>
-              <th style={{ width: "15%" }}>Category</th>
-              <th style={{ width: "10%" }}>Status</th>
-              <th style={{ width: "15%" }}>Supplier</th>
-              <th style={{ width: "10%" }}>Purchase Cost (£)</th>
-              <th style={{ width: "10%" }}>Warranty Expiry</th>
-              <th style={{ width: "15%" }}>Inflated Replacement Value (£)</th>
-              <th className="text-center" style={{ width: "15%" }}>
-                Actions
-              </th>
+              <th>Asset ID</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Supplier</th>
+              <th>Purchase Cost (£)</th>
+              <th>Warranty</th>
+              <th>Inflated Value (£)</th>
+              <th className="text-center">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {assets.map((a) => (
               <tr key={a.id || a._id}>
-                <td className="fw-semibold">{a.assetCode || "-"}</td>
-                <td>{a.name || "-"}</td>
-                <td>{a.category || "-"}</td>
-
+                <td className="fw-semibold">{a.assetCode}</td>
+                <td>{a.name}</td>
+                <td>{a.category}</td>
                 <td>
                   <span
                     className={`badge ${
@@ -52,20 +49,16 @@ export default function AssetList({ assets, onDelete, onEdit }) {
                         : "bg-secondary"
                     }`}
                   >
-                    {a.status || "Active"}
+                    {a.status}
                   </span>
                 </td>
-
-                <td>{a.supplier || "-"}</td>
-
+                <td>{a.supplier}</td>
                 <td>
                   {a.purchaseCost
                     ? `£${Number(a.purchaseCost).toFixed(2)}`
                     : "-"}
                 </td>
-
                 <td>{a.warrantyExpiry || "-"}</td>
-
                 <td>
                   {a.latestInflatedValue
                     ? `£${Number(a.latestInflatedValue).toLocaleString()}`
@@ -75,9 +68,9 @@ export default function AssetList({ assets, onDelete, onEdit }) {
                 <td className="text-center">
                   <button
                     className="btn btn-outline-info btn-sm me-2"
-                    onClick={() => setHistoryAsset(a)} // ⭐ NEW
+                    onClick={() => setHistoryAsset(a)}
                   >
-                    History
+                    Value History
                   </button>
 
                   <button
@@ -89,7 +82,7 @@ export default function AssetList({ assets, onDelete, onEdit }) {
 
                   <button
                     className="btn btn-outline-danger btn-sm"
-                    onClick={() => onDelete(a.id || a._id)}
+                    onClick={() => onDelete(a._id)}
                   >
                     Delete
                   </button>
@@ -110,11 +103,12 @@ export default function AssetList({ assets, onDelete, onEdit }) {
         />
       )}
 
-      {/* ⭐ History Modal */}
+      {/* History Modal */}
       {historyAsset && (
         <AssetHistoryModal
           asset={historyAsset}
           onClose={() => setHistoryAsset(null)}
+          onRefresh={onRefresh}   // 🔄 refresh on close/saving
         />
       )}
     </>

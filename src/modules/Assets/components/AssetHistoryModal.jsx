@@ -1,5 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Legend
+);
 
 export default function AssetHistoryModal({ asset, onClose }) {
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -9,10 +29,75 @@ export default function AssetHistoryModal({ asset, onClose }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  /* --------------------------------------------
+     Load history when asset changes
+  -------------------------------------------- */
   useEffect(() => {
     setHistory(asset.valueHistory || []);
   }, [asset]);
 
+  /* --------------------------------------------
+     Draw / Update Chart.js graph
+  -------------------------------------------- */
+  useEffect(() => {
+    if (!history || history.length === 0) return;
+
+    const years = history.map((h) => h.year);
+    const values = history.map((h) => h.value);
+
+    const ctx = chartRef.current.getContext("2d");
+
+    // Destroy old chart before drawing a new one
+    if (chartInstance.current) {
+      chartInstance.current.destroy();
+    }
+
+    chartInstance.current = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: years,
+        datasets: [
+          {
+            label: "Inflated Value (£)",
+            data: values,
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) =>
+                "£" + Number(ctx.raw).toLocaleString(),
+            },
+          },
+        },
+        scales: {
+          y: {
+            title: { display: true, text: "Value (£)" },
+            ticks: {
+              callback: (v) => "£" + v.toLocaleString(),
+            },
+          },
+          x: {
+            title: { display: true, text: "Year" },
+          },
+        },
+      },
+    });
+  }, [history]);
+
+  /* --------------------------------------------
+     Handle Inflation Rate Editing
+  -------------------------------------------- */
   const handleRateChange = (index, newRate) => {
     const updated = [...history];
     updated[index] = {
@@ -25,6 +110,7 @@ export default function AssetHistoryModal({ asset, onClose }) {
   const handleSaveRow = async (index) => {
     setError("");
     setMessage("");
+
     const row = history[index];
     if (!row) return;
 
@@ -50,15 +136,12 @@ export default function AssetHistoryModal({ asset, onClose }) {
 
       const data = await res.json();
 
-      // Replace local history with latest from backend
+      // Refresh local history
       setHistory(data.asset.valueHistory || []);
       setMessage(`Updated year ${row.year} successfully.`);
-
-      // Optional: if you want the main list to refresh automatically:
-      // window.location.reload();
     } catch (err) {
-      console.error("❌ Error updating history row:", err);
-      setError(err.message || "Failed to update history");
+      console.error("❌ Error:", err);
+      setError(err.message);
     } finally {
       setSavingYear(null);
     }
@@ -71,7 +154,7 @@ export default function AssetHistoryModal({ asset, onClose }) {
       className="modal fade show"
       style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
     >
-      <div className="modal-dialog modal-lg modal-dialog-centered">
+      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div className="modal-content shadow-lg">
           <div className="modal-header bg-info text-white">
             <h5 className="modal-title">
@@ -88,10 +171,13 @@ export default function AssetHistoryModal({ asset, onClose }) {
               <div className="alert alert-success py-2">{message}</div>
             )}
 
-            {(!history || history.length === 0) ? (
+            {/* --------------------------- */}
+            {/* TABLE OF YEARS / RATES / VALUES */}
+            {/* --------------------------- */}
+            {history.length === 0 ? (
               <p className="text-secondary">No history available.</p>
             ) : (
-              <table className="table table-bordered table-striped align-middle">
+              <table className="table table-bordered table-striped align-middle mb-4">
                 <thead className="table-light">
                   <tr>
                     <th style={{ width: "15%" }}>Year</th>
@@ -140,6 +226,12 @@ export default function AssetHistoryModal({ asset, onClose }) {
                 </tbody>
               </table>
             )}
+
+            {/* --------------------------- */}
+            {/* VALUE TREND GRAPH */}
+            {/* --------------------------- */}
+            <h6 className="fw-bold mt-4">Value Trend Graph</h6>
+            <canvas ref={chartRef} height="120"></canvas>
           </div>
 
           <div className="modal-footer">
