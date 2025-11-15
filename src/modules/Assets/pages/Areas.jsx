@@ -7,13 +7,12 @@ export default function Areas() {
   const [showModal, setShowModal] = useState(false);
   const [selectedArea, setSelectedArea] = useState(null);
   const [assetCounts, setAssetCounts] = useState({});
-  const [areaValues, setAreaValues] = useState({});
-  const [inflatedValues, setInflatedValues] = useState({}); // ⭐ NEW
+  const [areaValues, setAreaValues] = useState({}); // Purchase values only (inflated removed)
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   /* ==========================================================
-     🔹 Load all areas + asset counts + original + inflated values
+     🔹 Load all areas + asset counts + purchase values
   =========================================================== */
   const loadAreas = async () => {
     try {
@@ -24,7 +23,6 @@ export default function Areas() {
 
       const counts = {};
       const values = {};
-      const inflatedTotals = {}; // ⭐ NEW
 
       await Promise.all(
         data.map(async (area) => {
@@ -37,36 +35,27 @@ export default function Areas() {
               // Count assets
               counts[area._id] = assetData.length;
 
-              // Total purchase value
+              // Total purchase cost (inflated removed)
               const totalValue = assetData.reduce((sum, asset) => {
                 const cost = parseFloat(asset.purchaseCost) || 0;
                 return sum + cost;
               }, 0);
-              values[area._id] = totalValue;
 
-              // ⭐ Total inflated value
-              const inflated = assetData.reduce((sum, asset) => {
-                const iv = parseFloat(asset.latestInflatedValue) || 0;
-                return sum + iv;
-              }, 0);
-              inflatedTotals[area._id] = inflated;
+              values[area._id] = totalValue;
 
             } else {
               counts[area._id] = 0;
               values[area._id] = 0;
-              inflatedTotals[area._id] = 0;
             }
           } catch {
             counts[area._id] = 0;
             values[area._id] = 0;
-            inflatedTotals[area._id] = 0;
           }
         })
       );
 
       setAssetCounts(counts);
       setAreaValues(values);
-      setInflatedValues(inflatedTotals); // ⭐ SET NEW STATE
 
     } catch (err) {
       console.error("❌ Error loading areas:", err);
@@ -127,11 +116,10 @@ export default function Areas() {
           <table className="table table-bordered align-middle shadow-sm">
             <thead className="table-light">
               <tr>
-                <th style={{ width: "35%" }}>Area Name</th>
+                <th style={{ width: "40%" }}>Area Name</th>
                 <th style={{ width: "10%" }} className="text-center">Assets</th>
-                <th style={{ width: "15%" }} className="text-center">Value (£)</th>
-                <th style={{ width: "15%" }} className="text-center">Inflated Value (£)</th> {/* ⭐ NEW */}
-                <th style={{ width: "25%" }} className="text-center">Actions</th>
+                <th style={{ width: "20%" }} className="text-center">Value (£)</th>
+                <th style={{ width: "30%" }} className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -146,18 +134,10 @@ export default function Areas() {
 
                   <td className="text-center">{assetCounts[area._id] ?? "-"}</td>
 
-                  {/* Purchase Value */}
+                  {/* Purchase Value Only */}
                   <td className="text-center text-success fw-semibold">
                     £
                     {(areaValues[area._id] || 0).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </td>
-
-                  {/* ⭐ Inflated Value Column */}
-                  <td className="text-center text-primary fw-semibold">
-                    £
-                    {(inflatedValues[area._id] || 0).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                     })}
                   </td>
