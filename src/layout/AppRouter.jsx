@@ -13,8 +13,8 @@ import MaintenanceCalendar from "../modules/Maintenance-Calendar/MaintenanceCale
 // --- Business Partners Module ---
 import BusinessPartners from "../modules/BusinessPartners/BusinessPartners";
 
-// --- Settings Module ⭐ NEW ---
-import Settings from "../modules/Settings/Settings.jsx";
+// --- Settings (Finance Settings Page) ---
+import FinanceSettings from "../modules/Settings/FinanceSettings.jsx";
 
 // --- Temporary placeholder pages ---
 function Dashboard() {
@@ -94,8 +94,8 @@ export default function AppRouter() {
                   element={<MaintenanceCalendar />}
                 />
 
-                {/* ⭐ NEW SETTINGS PAGE */}
-                <Route path="/settings" element={<Settings />} />
+                {/* ⭐ SETTINGS → Finance */}
+                <Route path="/settings/finance" element={<FinanceSettings />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
@@ -107,4 +107,3 @@ export default function AppRouter() {
     </Router>
   );
 }
-

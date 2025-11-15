@@ -5,13 +5,13 @@ import "bootstrap/dist/css/bootstrap.min.css";
 export default function Sidebar() {
   const location = useLocation();
 
-  // ✅ Control which modules are visible
+  // Visibility toggles
   const showDashboard = true;
   const showSafety = false;
   const showAssets = true;
-  const showBusinessPartners = true; 
-  const showMaintenance = true; 
-  const showPreventiveMaintenance = false; 
+  const showBusinessPartners = true;
+  const showMaintenance = true;
+  const showPreventiveMaintenance = false;
   const showMaintenanceCalendar = true;
 
   const menuItems = [
@@ -54,16 +54,31 @@ export default function Sidebar() {
           </li>
         ))}
 
-        {/* ⭐ NEW SETTINGS BUTTON */}
+        {/* ⭐ NEW SETTINGS DROPDOWN */}
         <li className="nav-item mt-3">
-          <Link
-            to="/settings"
-            className={`nav-link text-white ${
-              location.pathname === "/settings" ? "active bg-info" : ""
-            }`}
+          <a
+            className="nav-link text-white dropdown-toggle"
+            data-bs-toggle="collapse"
+            href="#settingsMenu"
+            role="button"
           >
             Settings
-          </Link>
+          </a>
+
+          <ul className="collapse list-unstyled ps-3" id="settingsMenu">
+            <li className="nav-item mb-1">
+              <Link
+                to="/settings/finance"
+                className={`nav-link text-white ${
+                  location.pathname.startsWith("/settings/finance")
+                    ? "active bg-info"
+                    : ""
+                }`}
+              >
+                Finance
+              </Link>
+            </li>
+          </ul>
         </li>
       </ul>
 
