@@ -1,10 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AddAssetModal from "./AddAssetModal";
 import AssetHistoryModal from "./AssetHistoryModal";
 
 export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
   const [editingAsset, setEditingAsset] = useState(null);
   const [historyAsset, setHistoryAsset] = useState(null);
+
+  /* ==========================================================
+      🔥 Event bridge for AddAssetModal → open History Modal
+  =========================================================== */
+  useEffect(() => {
+    window.openAssetHistory = (asset) => {
+      setHistoryAsset(asset);
+    };
+  }, []);
 
   const handleEditSave = (updatedAsset) => {
     onEdit(updatedAsset);
@@ -28,7 +37,6 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
               <th>Supplier</th>
               <th>Purchase Cost (£)</th>
               <th>Warranty</th>
-              <th>Inflated Value (£)</th>
               <th className="text-center">Actions</th>
             </tr>
           </thead>
@@ -56,7 +64,6 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
 
                 <td>{a.supplier}</td>
 
-                {/* ✅ Purchase Cost formatted the same as inflated value */}
                 <td>
                   {a.purchaseCost
                     ? `£${Number(a.purchaseCost).toLocaleString(undefined, {
@@ -68,27 +75,7 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
 
                 <td>{a.warrantyExpiry || "-"}</td>
 
-                {/* ✅ Inflated Value formatted with commas & 2 decimals */}
-                <td>
-                  {a.latestInflatedValue
-                    ? `£${Number(a.latestInflatedValue).toLocaleString(
-                        undefined,
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }
-                      )}`
-                    : "-"}
-                </td>
-
                 <td className="text-center">
-                  <button
-                    className="btn btn-outline-info btn-sm me-2"
-                    onClick={() => setHistoryAsset(a)}
-                  >
-                    Value History
-                  </button>
-
                   <button
                     className="btn btn-outline-primary btn-sm me-2"
                     onClick={() => setEditingAsset(a)}

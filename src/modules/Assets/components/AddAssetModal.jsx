@@ -34,15 +34,12 @@ export default function AddAssetModal({
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   /* ==========================================================
-      🔹 Convert DB date → DD/MM/YYYY
+      Convert DB date → DD/MM/YYYY
   =========================================================== */
   const toDisplayDate = (value) => {
     if (!value) return "";
-
-    // "2020"
     if (/^\d{4}$/.test(value)) return value;
 
-    // "2020-03-14" → DD/MM/YYYY
     const dt = new Date(value);
     if (isNaN(dt)) return value;
 
@@ -54,43 +51,54 @@ export default function AddAssetModal({
   };
 
   /* ==========================================================
-      🔹 Convert DD/MM/YYYY → yyyy-mm-dd for saving
+      Convert DD/MM/YYYY → yyyy-mm-dd
   =========================================================== */
   const toDatabaseDate = (value) => {
     if (!value) return "";
-
-    // If only "2020" → convert to "2020-01-01"
     if (/^\d{4}$/.test(value)) return `${value}-01-01`;
 
-    // dd/mm/yyyy → yyyy-mm-dd
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
       const [d, m, y] = value.split("/");
       return `${y}-${m}-${d}`;
     }
 
-    return value; // fallback
+    return value;
   };
 
   /* ==========================================================
-     🔹 When modal opens
+      Event bridge for showing History Modal
   =========================================================== */
   useEffect(() => {
-    if (show) {
-      if (existingAsset) {
-        setForm({
-          ...existingAsset,
-          purchaseDate: toDisplayDate(existingAsset.purchaseDate),
-        });
-        setAutoCode(existingAsset.assetCode || "");
-      } else {
-        setForm({ ...blankState, _id: undefined });
-        setAutoCode("");
+    const handler = (e) => {
+      if (window.openAssetHistory && e.detail) {
+        window.openAssetHistory(e.detail);
       }
+    };
+
+    window.addEventListener("open-asset-history", handler);
+    return () => window.removeEventListener("open-asset-history", handler);
+  }, []);
+
+  /* ==========================================================
+      Load data when modal opens
+  =========================================================== */
+  useEffect(() => {
+    if (!show) return;
+
+    if (existingAsset) {
+      setForm({
+        ...existingAsset,
+        purchaseDate: toDisplayDate(existingAsset.purchaseDate),
+      });
+      setAutoCode(existingAsset.assetCode || "");
+    } else {
+      setForm({ ...blankState, _id: undefined });
+      setAutoCode("");
     }
   }, [show, existingAsset]);
 
   /* ==========================================================
-     🔹 Handle field changes
+      Handle input changes
   =========================================================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -104,7 +112,7 @@ export default function AddAssetModal({
   };
 
   /* ==========================================================
-     🔹 Save asset
+      Save asset
   =========================================================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -115,6 +123,7 @@ export default function AddAssetModal({
     }
 
     setSaving(true);
+
     try {
       const { _id, ...cleanForm } = form;
 
@@ -139,6 +148,7 @@ export default function AddAssetModal({
 
       const data = await res.json();
       if (onSave) onSave(data.asset || data);
+
       onClose();
     } catch (err) {
       console.error("❌ Error saving asset:", err);
@@ -151,7 +161,7 @@ export default function AddAssetModal({
   if (!show) return null;
 
   /* ==========================================================
-     🔹 UI
+      UI
   =========================================================== */
   return (
     <div className="modal d-block bg-dark bg-opacity-50">
@@ -160,10 +170,9 @@ export default function AddAssetModal({
           <h5 className="mb-3">{existingAsset ? "Edit Asset" : "Add Asset"}</h5>
 
           <form onSubmit={handleSubmit}>
-            {/* ===== Core Operations ===== */}
+            {/* === Core Operations === */}
             <h6 className="fw-bold text-primary mt-2 mb-2">Core Operations</h6>
             <div className="row g-2 mb-3">
-
               <div className="col-md-4">
                 <label className="form-label small">Assigned Asset ID</label>
                 <input type="text" className="form-control" value={autoCode} readOnly />
@@ -252,9 +261,8 @@ export default function AddAssetModal({
               </div>
             </div>
 
-            {/* ===== Finance & Lifecycle ===== */}
+            {/* === Finance & Lifecycle === */}
             <h6 className="fw-bold text-primary mt-3 mb-2">Finance & Lifecycle</h6>
-
             <div className="row g-2 mb-3">
               <div className="col-md-4">
                 <label className="form-label small">Purchase Date</label>
@@ -291,16 +299,37 @@ export default function AddAssetModal({
                 />
               </div>
 
+              {/* === Replacement Value (Latest) + History Button === */}
               <div className="col-md-4">
-                <label className="form-label small">Replacement Value (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  name="replacementValue"
-                  value={form.replacementValue}
-                  onChange={handleChange}
-                />
+                <label className="form-label small">Replacement Value (Latest) (£)</label>
+
+                <div className="input-group">
+                  <input
+                    type="text"
+                    className="form-control"
+                    readOnly
+                    value={
+                      existingAsset?.latestInflatedValue
+                        ? `£${Number(existingAsset.latestInflatedValue).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : form.replacementValue
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="btn btn-outline-info btn-sm"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent("open-asset-history", { detail: existingAsset })
+                      )
+                    }
+                  >
+                    History
+                  </button>
+                </div>
               </div>
 
               <div className="col-md-4">
@@ -384,16 +413,10 @@ export default function AddAssetModal({
 
               <button
                 type="submit"
-                className={`btn ${
-                  existingAsset ? "btn-warning" : "btn-primary"
-                }`}
+                className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`}
                 disabled={saving}
               >
-                {saving
-                  ? "Saving..."
-                  : existingAsset
-                  ? "Update Asset"
-                  : "Save Asset"}
+                {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
               </button>
             </div>
           </form>
