@@ -15,6 +15,22 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
     };
   }, []);
 
+  /* ==========================================================
+      Format date → DD/MM/YYYY
+  =========================================================== */
+  const formatDate = (value) => {
+    if (!value) return "-";
+
+    const dt = new Date(value);
+    if (isNaN(dt)) return value;
+
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const y = dt.getFullYear();
+
+    return `${d}/${m}/${y}`;
+  };
+
   const handleEditSave = (updatedAsset) => {
     onEdit(updatedAsset);
     setEditingAsset(null);
@@ -36,7 +52,7 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
               <th>Status</th>
               <th>Supplier</th>
               <th>Purchase Cost (£)</th>
-              <th>Warranty</th>
+              <th>Warranty Expiry</th>
               <th className="text-center">Actions</th>
             </tr>
           </thead>
@@ -73,7 +89,8 @@ export default function AssetList({ assets, onDelete, onEdit, onRefresh }) {
                     : "-"}
                 </td>
 
-                <td>{a.warrantyExpiry || "-"}</td>
+                {/* ✔ Format warranty date nicely */}
+                <td>{formatDate(a.warrantyExpiry)}</td>
 
                 <td className="text-center">
                   <button

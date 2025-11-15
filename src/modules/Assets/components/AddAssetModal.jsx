@@ -26,6 +26,8 @@ export default function AddAssetModal({
     disposalDate: "",
     disposalValue: "",
     disposalReason: "",
+    valueHistory: [],
+    latestInflatedValue: "",
   };
 
   const [form, setForm] = useState(blankState);
@@ -46,7 +48,6 @@ export default function AddAssetModal({
     const d = String(dt.getDate()).padStart(2, "0");
     const m = String(dt.getMonth() + 1).padStart(2, "0");
     const y = dt.getFullYear();
-
     return `${d}/${m}/${y}`;
   };
 
@@ -66,7 +67,7 @@ export default function AddAssetModal({
   };
 
   /* ==========================================================
-      Event bridge for showing History Modal
+      Event bridge for History Modal
   =========================================================== */
   useEffect(() => {
     const handler = (e) => {
@@ -74,13 +75,12 @@ export default function AddAssetModal({
         window.openAssetHistory(e.detail);
       }
     };
-
     window.addEventListener("open-asset-history", handler);
     return () => window.removeEventListener("open-asset-history", handler);
   }, []);
 
   /* ==========================================================
-      Load data when modal opens
+      Load Asset Into Form
   =========================================================== */
   useEffect(() => {
     if (!show) return;
@@ -90,6 +90,7 @@ export default function AddAssetModal({
         ...existingAsset,
         purchaseDate: toDisplayDate(existingAsset.purchaseDate),
       });
+
       setAutoCode(existingAsset.assetCode || "");
     } else {
       setForm({ ...blankState, _id: undefined });
@@ -98,7 +99,7 @@ export default function AddAssetModal({
   }, [show, existingAsset]);
 
   /* ==========================================================
-      Handle input changes
+      Handle Form Changes
   =========================================================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -112,7 +113,38 @@ export default function AddAssetModal({
   };
 
   /* ==========================================================
-      Save asset
+      Recalculate History If Purchase Cost Changes
+  =========================================================== */
+  const recalcValueHistory = (newCost, history) => {
+    let currentValue = Number(newCost);
+    let updated = [];
+
+    history
+      .sort((a, b) => a.year - b.year)
+      .forEach((entry) => {
+        const rate = Number(entry.inflationRate);
+        const newValue = currentValue + currentValue * (rate / 100);
+
+        updated.push({
+          year: entry.year,
+          inflationRate: entry.inflationRate,
+          value: Number(newValue.toFixed(2)),
+        });
+
+        currentValue = newValue;
+      });
+
+    return {
+      valueHistory: updated,
+      latestInflatedValue:
+        updated.length > 0
+          ? updated[updated.length - 1].value
+          : Number(newCost),
+    };
+  };
+
+  /* ==========================================================
+      Save Asset
   =========================================================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -125,14 +157,28 @@ export default function AddAssetModal({
     setSaving(true);
 
     try {
-      const { _id, ...cleanForm } = form;
+      let payload = { ...form };
+      let purchaseChanged =
+        existingAsset &&
+        Number(existingAsset.purchaseCost) !== Number(form.purchaseCost);
 
-      const payload = {
-        ...cleanForm,
-        areaId,
-        assetCode: autoCode,
-        purchaseDate: toDatabaseDate(form.purchaseDate),
-      };
+      // ---------------------------
+      // AUTO-RECALCULATE HISTORY
+      // ---------------------------
+      if (purchaseChanged && existingAsset.valueHistory?.length > 0) {
+        const recalculated = recalcValueHistory(
+          form.purchaseCost,
+          existingAsset.valueHistory
+        );
+
+        payload.valueHistory = recalculated.valueHistory;
+        payload.latestInflatedValue = recalculated.latestInflatedValue;
+      }
+
+      // Always ensure purchaseDate is correct format
+      payload.purchaseDate = toDatabaseDate(form.purchaseDate);
+      payload.assetCode = autoCode;
+      payload.areaId = areaId;
 
       const url = existingAsset
         ? `${API_BASE}/api/assets/${existingAsset._id}`
@@ -203,34 +249,17 @@ export default function AddAssetModal({
 
               <div className="col-md-4">
                 <label className="form-label small">Model</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name="model"
-                  value={form.model}
-                  onChange={handleChange}
-                />
+                <input type="text" className="form-control" name="model" value={form.model} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Serial Number</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name="serial"
-                  value={form.serial}
-                  onChange={handleChange}
-                />
+                <input type="text" className="form-control" name="serial" value={form.serial} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Status</label>
-                <select
-                  className="form-select"
-                  name="status"
-                  value={form.status}
-                  onChange={handleChange}
-                >
+                <select className="form-select" name="status" value={form.status} onChange={handleChange}>
                   <option>Active</option>
                   <option>Out of Service</option>
                   <option>Scrapped</option>
@@ -239,70 +268,37 @@ export default function AddAssetModal({
 
               <div className="col-md-4">
                 <label className="form-label small">Installation / Commission Date</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  name="installDate"
-                  value={form.installDate}
-                  onChange={handleChange}
-                />
+                <input type="date" className="form-control" name="installDate" value={form.installDate} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Installation Cost (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  name="installationCost"
-                  value={form.installationCost}
-                  onChange={handleChange}
-                />
+                <input type="number" step="0.01" className="form-control" name="installationCost" value={form.installationCost} onChange={handleChange} />
               </div>
             </div>
 
-            {/* === Finance & Lifecycle === */}
+            {/* === Finance === */}
             <h6 className="fw-bold text-primary mt-3 mb-2">Finance & Lifecycle</h6>
             <div className="row g-2 mb-3">
+
               <div className="col-md-4">
                 <label className="form-label small">Purchase Date</label>
-                <input
-                  type="text"
-                  placeholder="dd/mm/yyyy or yyyy"
-                  className="form-control"
-                  name="purchaseDate"
-                  value={form.purchaseDate}
-                  onChange={handleChange}
-                />
+                <input type="text" placeholder="dd/mm/yyyy or yyyy" className="form-control" name="purchaseDate" value={form.purchaseDate} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Supplier</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name="supplier"
-                  value={form.supplier}
-                  onChange={handleChange}
-                />
+                <input type="text" className="form-control" name="supplier" value={form.supplier} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Purchase Cost (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  name="purchaseCost"
-                  value={form.purchaseCost}
-                  onChange={handleChange}
-                />
+                <input type="number" step="0.01" className="form-control" name="purchaseCost" value={form.purchaseCost} onChange={handleChange} />
               </div>
 
-              {/* === Replacement Value (Latest) + History Button === */}
+              {/* === Replacement Value Box (compact with History button) === */}
               <div className="col-md-4">
                 <label className="form-label small">Replacement Value (Latest) (£)</label>
-
                 <div className="input-group">
                   <input
                     type="text"
@@ -310,14 +306,10 @@ export default function AddAssetModal({
                     readOnly
                     value={
                       existingAsset?.latestInflatedValue
-                        ? `£${Number(existingAsset.latestInflatedValue).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`
+                        ? `£${Number(existingAsset.latestInflatedValue).toLocaleString()}`
                         : form.replacementValue
                     }
                   />
-
                   <button
                     type="button"
                     className="btn btn-outline-info btn-sm"
@@ -334,88 +326,42 @@ export default function AddAssetModal({
 
               <div className="col-md-4">
                 <label className="form-label small">Expected Useful Life (years)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  name="expectedLife"
-                  value={form.expectedLife}
-                  onChange={handleChange}
-                />
+                <input type="number" className="form-control" name="expectedLife" value={form.expectedLife} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Annual Maintenance Costs (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  name="annualMaintenanceCost"
-                  value={form.annualMaintenanceCost}
-                  onChange={handleChange}
-                />
+                <input type="number" step="0.01" className="form-control" name="annualMaintenanceCost" value={form.annualMaintenanceCost} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Warranty Expiry</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  name="warrantyExpiry"
-                  value={form.warrantyExpiry}
-                  onChange={handleChange}
-                />
+                <input type="date" className="form-control" name="warrantyExpiry" value={form.warrantyExpiry} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Disposal / Write-Off Date</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  name="disposalDate"
-                  value={form.disposalDate}
-                  onChange={handleChange}
-                />
+                <input type="date" className="form-control" name="disposalDate" value={form.disposalDate} onChange={handleChange} />
               </div>
 
               <div className="col-md-4">
                 <label className="form-label small">Disposal Value (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  name="disposalValue"
-                  value={form.disposalValue}
-                  onChange={handleChange}
-                />
+                <input type="number" step="0.01" className="form-control" name="disposalValue" value={form.disposalValue} onChange={handleChange} />
               </div>
 
               <div className="col-12">
                 <label className="form-label small">Disposal Reason</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  name="disposalReason"
-                  value={form.disposalReason}
-                  onChange={handleChange}
-                ></textarea>
+                <textarea className="form-control" rows="2" name="disposalReason" value={form.disposalReason} onChange={handleChange}></textarea>
               </div>
             </div>
 
+            {/* Submit Buttons */}
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-                disabled={saving}
-              >
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
                 Cancel
               </button>
 
-              <button
-                type="submit"
-                className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`}
-                disabled={saving}
-              >
+              <button type="submit" className={`btn ${existingAsset ? "btn-warning" : "btn-primary"}`} disabled={saving}>
                 {saving ? "Saving..." : existingAsset ? "Update Asset" : "Save Asset"}
               </button>
             </div>
